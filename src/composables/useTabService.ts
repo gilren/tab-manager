@@ -5,7 +5,6 @@ export function useTabService(loadTabs: () => Promise<void>): TabService {
 		const seen = new Set<string>();
 		const duplicates = new Set<string>();
 		for (const tab of tabs) {
-			if (!tab.url) continue;
 			if (seen.has(tab.url)) {
 				duplicates.add(tab.url);
 			} else {
@@ -16,19 +15,18 @@ export function useTabService(loadTabs: () => Promise<void>): TabService {
 	}
 
 	async function removeDuplicates(tabs: Tab[]): Promise<void> {
-		const duplicates = findDuplicates(tabs);
 		const seen = new Set<string>();
 		const toRemove: number[] = [];
 		for (const tab of tabs) {
-			if (!tab.url || !duplicates.has(tab.url)) continue;
 			if (seen.has(tab.url)) {
 				toRemove.push(tab.id);
 			} else {
 				seen.add(tab.url);
 			}
 		}
-		for (const id of toRemove) {
-			await browser.tabs.remove(id);
+		if (toRemove.length > 0) {
+			await browser.tabs.remove(toRemove);
+			await loadTabs();
 		}
 	}
 

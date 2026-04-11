@@ -1,13 +1,12 @@
-export interface Tab {
+import type { Browser } from "wxt/browser";
+
+type RawTab = Browser.tabs.Tab;
+
+export type Tab = Omit<RawTab, "id" | "url" | "windowId"> & {
 	id: number;
-	title: string;
 	url: string;
 	windowId: number;
-	active: boolean;
-	audible: boolean;
-	pinned: boolean;
-	favIconUrl: string;
-}
+};
 
 export interface TabsViewConfig {
 	tabs: Tab[];

@@ -7,72 +7,63 @@ const state: TabState = {
 	collapsedWindows: new Set(),
 };
 
-export function useTabState() {
-	async function loadTabs(): Promise<void> {
-		const tabs = await browser.tabs.query({});
-		state.allTabs = tabs as Tab[];
-	}
+async function loadTabs(): Promise<void> {
+	const raw = await browser.tabs.query({});
+	state.allTabs = raw.filter(
+		(t): t is Tab =>
+			t.id !== undefined && t.url !== undefined && t.windowId !== undefined,
+	);
+}
 
-	function subscribe(callback: () => void): () => void {
-		const onCreated = () => {
-			loadTabs().then(callback);
-		};
-		const onRemoved = () => {
-			loadTabs().then(callback);
-		};
-		const onUpdated = () => {
-			loadTabs().then(callback);
-		};
+function subscribe(callback: () => void): () => void {
+	const handler = () => {
+		loadTabs().then(callback).catch(console.error);
+	};
 
-		browser.tabs.onCreated.addListener(onCreated);
-		browser.tabs.onRemoved.addListener(onRemoved);
-		browser.tabs.onUpdated.addListener(onUpdated);
+	browser.tabs.onCreated.addListener(handler);
+	browser.tabs.onRemoved.addListener(handler);
+	browser.tabs.onUpdated.addListener(handler);
 
-		return () => {
-			browser.tabs.onCreated.removeListener(onCreated);
-			browser.tabs.onRemoved.removeListener(onRemoved);
-			browser.tabs.onUpdated.removeListener(onUpdated);
-		};
-	}
-
-	return {
-		get state() {
-			return state;
-		},
-
-		get allTabs() {
-			return state.allTabs;
-		},
-
-		get filter() {
-			return state.filter;
-		},
-
-		get focusedTabId() {
-			return state.focusedTabId;
-		},
-
-		get collapsedWindows() {
-			return state.collapsedWindows;
-		},
-
-		setFilter(filter: string) {
-			state.filter = filter;
-		},
-
-		setFocusedTabId(id: number | null) {
-			state.focusedTabId = id;
-		},
-
-		toggleCollapsedWindow(windowId: number) {
-			if (state.collapsedWindows.has(windowId)) {
-				state.collapsedWindows.delete(windowId);
-			} else {
-				state.collapsedWindows.add(windowId);
-			}
-		},
-
-		loadTabs,
-		subscribe,
+	return () => {
+		browser.tabs.onCreated.removeListener(handler);
+		browser.tabs.onRemoved.removeListener(handler);
+		browser.tabs.onUpdated.removeListener(handler);
 	};
 }
+
+export const tabState = {
+	get allTabs() {
+		return state.allTabs;
+	},
+
+	get filter() {
+		return state.filter;
+	},
+
+	get focusedTabId() {
+		return state.focusedTabId;
+	},
+
+	get collapsedWindows() {
+		return state.collapsedWindows;
+	},
+
+	setFilter(filter: string) {
+		state.filter = filter;
+	},
+
+	setFocusedTabId(id: number | null) {
+		state.focusedTabId = id;
+	},
+
+	toggleCollapsedWindow(windowId: number) {
+		if (state.collapsedWindows.has(windowId)) {
+			state.collapsedWindows.delete(windowId);
+		} else {
+			state.collapsedWindows.add(windowId);
+		}
+	},
+
+	loadTabs,
+	subscribe,
+};
