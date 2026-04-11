@@ -1,5 +1,4 @@
 :root {
-	/* colors */
 	--bg-primary: #0d0d0d;
 	--bg-secondary: #141414;
 	--bg-tertiary: #151515;
@@ -39,6 +38,7 @@
 	color: var(--text-primary);
 	background-color: var(--bg-primary);
 }
+
 * {
 	box-sizing: border-box;
 	margin: 0;
