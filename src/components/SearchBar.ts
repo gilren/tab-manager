@@ -18,7 +18,7 @@ export function setupSearchBar(
 	};
 
 	const handleInput = () => {
-		onSearch(element.value.toLowerCase());
+		onSearch(element.value);
 	};
 
 	const handleKeydown = (e: KeyboardEvent) => {

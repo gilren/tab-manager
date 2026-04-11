@@ -11,20 +11,17 @@ export default defineBackground(() => {
 });
 
 async function openTabManager(): Promise<void> {
-	const tabId = "/index.html";
-	const fullUrl = browser.runtime.getURL(tabId);
+	const path = "/index.html";
+	const fullUrl = browser.runtime.getURL(path);
 
 	const tabs = await browser.tabs.query({ url: fullUrl });
 
-	console.log(tabs);
-
 	if (tabs.length > 0) {
-		browser.tabs.update(tabs[0].id, { active: true }).then(() => {
-			const windowId = tabs[0].windowId;
-			if (!windowId) return;
-			browser.windows.update(windowId, { focused: true });
-		});
+		const tab = tabs[0];
+		if (tab.id === undefined || tab.windowId === undefined) return;
+		await browser.tabs.update(tab.id, { active: true });
+		await browser.windows.update(tab.windowId, { focused: true });
 	} else {
-		browser.tabs.create({ url: fullUrl, active: true });
+		await browser.tabs.create({ url: fullUrl, active: true });
 	}
 }

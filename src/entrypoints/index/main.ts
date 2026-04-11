@@ -4,7 +4,7 @@ import { setupSearchBar } from "~/components/SearchBar";
 import { setupStats } from "~/components/Stats";
 import { setupTabsView } from "~/components/TabsView";
 import { useTabService } from "~/composables/useTabService";
-import { useTabState } from "~/composables/useTabState";
+import { tabState } from "~/composables/useTabState";
 
 const searchEl = document.getElementById("search") as HTMLInputElement;
 const clearBtn = document.getElementById("clear-btn") as HTMLButtonElement;
@@ -12,18 +12,18 @@ const statsEl = document.getElementById("stats") as HTMLElement;
 const contentEl = document.getElementById("content") as HTMLElement;
 const dupBtn = document.getElementById("dup-btn") as HTMLButtonElement;
 
-const tabState = useTabState();
 const tabService = useTabService(tabState.loadTabs.bind(tabState));
 
 function render() {
 	const allTabs = tabState.allTabs;
 	const filter = tabState.filter;
 
-	const filtered = filter
+	const needle = filter.toLowerCase();
+	const filtered = needle
 		? allTabs.filter(
 				(t) =>
-					(t.title || "").toLowerCase().includes(filter) ||
-					(t.url || "").toLowerCase().includes(filter),
+					(t.title || "").toLowerCase().includes(needle) ||
+					t.url.toLowerCase().includes(needle),
 			)
 		: allTabs;
 
@@ -46,8 +46,12 @@ function render() {
 		},
 		onActivateTab: (tabId: number, windowId: number) =>
 			tabService.activateTab(tabId, windowId),
-		onCloseTab: (tabId: number) => {
-			tabService.closeTab(tabId).then(render);
+		onCloseTab: async (tabId: number) => {
+			try {
+				await tabService.closeTab(tabId);
+			} catch (e) {
+				console.error(e);
+			}
 		},
 	});
 }
@@ -63,9 +67,9 @@ function focusTab(tabEl: Element | null): void {
 	if (tabEl) {
 		tabEl.classList.add("focused");
 		(tabEl as HTMLElement).focus();
-		tabState.setFocusedTabId(
-			parseInt(tabEl.getAttribute("data-tab-id") || "", 10),
-		);
+		const raw = tabEl.getAttribute("data-tab-id");
+		const parsed = raw !== null ? parseInt(raw, 10) : NaN;
+		tabState.setFocusedTabId(Number.isFinite(parsed) ? parsed : null);
 		tabEl.scrollIntoView({ block: "nearest" });
 	} else {
 		tabState.setFocusedTabId(null);
@@ -77,7 +81,7 @@ function focusNext(delta: number): void {
 	if (tabs.length === 0) return;
 
 	let idx = tabs.findIndex((t) => t.classList.contains("focused"));
-	if (idx === -1) idx = 0;
+	if (idx === -1) idx = delta > 0 ? 0 : tabs.length - 1;
 	else idx = (idx + delta + tabs.length) % tabs.length;
 	focusTab(tabs[idx]);
 }
@@ -97,7 +101,6 @@ async function closeFocused(): Promise<void> {
 	if (focusedTabId === null) return;
 
 	await tabService.closeTab(focusedTabId);
-	render();
 }
 
 async function removeDuplicates(): Promise<void> {
@@ -108,6 +111,7 @@ setupSearchBar(searchEl, {
 	initialValue: tabState.filter,
 	onSearch: (value) => {
 		tabState.setFilter(value);
+		render();
 	},
 	clearButton: clearBtn,
 });
@@ -143,6 +147,13 @@ document.addEventListener("keydown", (e) => {
 
 dupBtn.addEventListener("click", removeDuplicates);
 
-tabState.loadTabs().then(render);
+(async () => {
+	try {
+		await tabState.loadTabs();
+		render();
+	} catch (e) {
+		console.error(e);
+	}
+})();
 
 tabState.subscribe(render);
