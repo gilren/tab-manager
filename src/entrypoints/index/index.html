@@ -1,0 +1,30 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta http-equiv="X-UA-Compatible" content="IE=edge" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+
+  <script type="module" src="./main.ts"></script>
+  <link rel="icon" type="image/png" href="./icons/16.png" />
+  <title>[Tab Manager]</title>
+</head>
+<body>
+  <div class="header">
+    <div class="search-wrapper">
+      <input class="search" type="text" id="search" placeholder="Search tabs..." autofocus>
+      <button type="button" class="clear-btn" id="clear-btn">×</button>
+    </div>
+    <div class="header-actions">
+      <div class="stats" id="stats"></div>
+      <div class="actions">
+        <span class="shortcut">[↑↓]</span>
+        <span class="shortcut">[ENTER]</span>
+        <span class="shortcut">[DEL]</span>
+        <button type="button" class="dup-btn" id="dup-btn">[REMOVE DUPLICATES]</button>
+      </div>
+    </div>
+  </div>
+  <div id="content"></div>
+</body>
+</html>
