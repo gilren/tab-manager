@@ -4,9 +4,16 @@ export default defineConfig({
 	srcDir: "src",
 	browser: "firefox",
 	modules: ["@wxt-dev/auto-icons"],
-	autoIcons: { developmentIndicator: false },
+	// autoIcons: { developmentIndicator: false },
 	manifest: {
 		browser_action: {},
+		browser_specific_settings: {
+			gecko: {
+				id: "tab-manager@gilren",
+				strict_min_version: "109.0",
+			},
+		},
+		permissions: ["tabs"],
 		web_accessible_resources: [
 			{
 				resources: ["icons/*.svg", "icons/*.png"],
