@@ -244,6 +244,10 @@ body {
 	border-left-color: var(--accent-secondary);
 }
 
+.tab-duplicate {
+	border-left-color: var(--accent-secondary);
+}
+
 .tab-active:not(.tab-pinned) {
 	background: #161616;
 }
@@ -278,14 +282,15 @@ body {
 }
 
 .tab-title {
+	font-weight: 400;
 	white-space: nowrap;
 	overflow: hidden;
 	text-overflow: ellipsis;
-	font-size: 13px;
+	font-size: 12px;
 	color: var(--text-primary);
 }
 
-.tab-title.dimmed {
+.tab-duplicate .tab-title {
 	color: var(--text-quaternary);
 }
 

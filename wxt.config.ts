@@ -3,7 +3,7 @@ import { defineConfig } from "wxt";
 export default defineConfig({
 	srcDir: "src",
 	browser: "firefox",
-	modules: ["@wxt-dev/auto-icons"],
+	modules: ["@wxt-dev/auto-icons", "@wxt-dev/module-solid"],
 	// autoIcons: { developmentIndicator: false },
 	manifest: {
 		browser_action: {},

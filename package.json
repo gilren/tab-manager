@@ -15,9 +15,13 @@
 		"postinstall": "wxt prepare",
 		"lint": "biome lint ."
 	},
+	"dependencies": {
+		"solid-js": "^1.9.11"
+	},
 	"devDependencies": {
 		"@biomejs/biome": "^2.4.11",
 		"@wxt-dev/auto-icons": "^1.1.1",
+		"@wxt-dev/module-solid": "^1.1.4",
 		"typescript": "^5.9.3",
 		"wxt": "^0.20.20"
 	}
