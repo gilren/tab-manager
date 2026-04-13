@@ -1,19 +1,22 @@
 import type { Accessor, Setter } from "solid-js";
+import { useTabsContext } from "@/store/tabs";
 
 interface HeaderProps {
 	search: Accessor<string>;
 	setSearch: Setter<string>;
 	tabCount: Accessor<number>;
-	duplicates: Accessor<Set<number>>;
 }
 
-export default function Header({
-	search,
-	setSearch,
-	tabCount,
-	duplicates,
-}: HeaderProps) {
-	const duplicateCount = () => duplicates().size;
+export default function Header({ search, setSearch, tabCount }: HeaderProps) {
+	const { tabs } = useTabsContext();
+
+	const duplicatesIds = () => {
+		return Object.values(tabs)
+			.filter((t) => t.isDuplicate)
+			.map((t) => t.id);
+	};
+
+	const duplicateCount = () => duplicatesIds().length;
 
 	const handleSearch = (
 		event: InputEvent & { currentTarget: HTMLInputElement },
@@ -34,7 +37,7 @@ export default function Header({
 
 	const handleDuplicatesClose = async (event: MouseEvent) => {
 		event.preventDefault();
-		await browser.tabs.remove(Array.from(duplicates()));
+		await browser.tabs.remove(duplicatesIds());
 	};
 
 	return (
