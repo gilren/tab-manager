@@ -1,6 +1,22 @@
+import devtools from "solid-devtools/vite";
+import solid from "vite-plugin-solid";
+
 import { defineConfig } from "wxt";
 
 export default defineConfig({
+	vite: () => ({
+		plugins: [
+			devtools({
+				autoname: true,
+				locator: {
+					targetIDE: "vscode",
+					componentLocation: true,
+					jsxLocation: true,
+				},
+			}),
+			solid(),
+		],
+	}),
 	srcDir: "src",
 	browser: "firefox",
 	modules: ["@wxt-dev/auto-icons", "@wxt-dev/module-solid"],

@@ -1,9 +1,8 @@
 import type { Browser } from "wxt/browser";
 
-type RawTab = Browser.tabs.Tab;
-
-export type Tab = Omit<RawTab, "id" | "url" | "windowId"> & {
+export type Tab = Browser.tabs.Tab & {
 	id: number;
 	url: string;
 	windowId: number;
+	isDuplicate: boolean;
 };

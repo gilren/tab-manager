@@ -2,12 +2,6 @@ export default defineBackground(() => {
 	browser.browserAction.onClicked.addListener(() => {
 		openTabManager();
 	});
-
-	browser.commands.onCommand.addListener((command) => {
-		if (command === "open-tab-manager") {
-			openTabManager();
-		}
-	});
 });
 
 async function openTabManager(): Promise<void> {
@@ -15,8 +9,6 @@ async function openTabManager(): Promise<void> {
 	const fullUrl = browser.runtime.getURL(path);
 
 	const tabs = await browser.tabs.query({ url: fullUrl });
-
-	console.log(tabs);
 
 	if (tabs.length > 0) {
 		const tab = tabs[0];
