@@ -1,38 +1,25 @@
-import { CollisionPriority } from "@dnd-kit/abstract";
-import { useSortable } from "@dnd-kit/solid/sortable";
 import type { Accessor } from "solid-js";
 import { useTabsContext } from "@/store/tabs";
 
 interface WindowProps {
 	id: number;
-	index: number;
 	search: Accessor<string>;
+	isDropTarget: boolean;
 }
 
 export default function Window(props: WindowProps) {
-	const { tabs } = useTabsContext();
-	const { ref, isDropTarget } = useSortable({
-		get id() {
-			return props.id;
-		},
-		get index() {
-			return props.index;
-		},
-		type: "window",
-		accept: ["tab"],
-		collisionPriority: CollisionPriority.Low,
-	});
+	const { tabsByWindow } = useTabsContext();
 
 	const myTabs = createMemo(() => {
 		const needle = props.search().toLowerCase().trim();
-		return Object.values(tabs)
-			.filter((t) => {
-				if (t.windowId !== props.id) return false;
-				if (!needle) return true;
-				return (
-					t.title?.toLowerCase().includes(needle) || t.url.includes(needle)
-				);
-			})
+		const windowTabs = tabsByWindow().get(props.id) ?? [];
+		return windowTabs
+			.filter(
+				(tab) =>
+					!needle ||
+					tab.title?.toLowerCase().includes(needle) ||
+					tab.url.includes(needle),
+			)
 			.sort((a, b) => a.index - b.index);
 	});
 
@@ -53,7 +40,7 @@ export default function Window(props: WindowProps) {
 	return (
 		<div
 			class="window-group"
-			classList={{ "window-drop-target": isDropTarget() }}
+			classList={{ "window-drop-target": props.isDropTarget }}
 		>
 			<div class="window-header">
 				<div>
@@ -69,8 +56,8 @@ export default function Window(props: WindowProps) {
 						>
 							<svg
 								xmlns="http://www.w3.org/2000/svg"
-								width="12"
-								height="12"
+								width="14"
+								height="14"
 								viewBox="0 0 24 24"
 								fill="none"
 								stroke="currentColor"
@@ -90,8 +77,8 @@ export default function Window(props: WindowProps) {
 					>
 						<svg
 							xmlns="http://www.w3.org/2000/svg"
-							width="12"
-							height="12"
+							width="14"
+							height="14"
 							viewBox="0 0 24 24"
 							fill="none"
 							stroke="currentColor"
@@ -100,13 +87,15 @@ export default function Window(props: WindowProps) {
 							stroke-linejoin="round"
 						>
 							<title>Close tab</title>
-							<path d="M18 6 6 18" />
-							<path d="m6 6 12 12" />
+							<path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6" />
+							<path d="M3 6h18" />
+							<path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
 						</svg>
 					</button>
 				</div>
 			</div>
-			<ul class="tabs" ref={ref}>
+
+			<ul class="tabs">
 				<For each={myTabs()}>
 					{(tab, i) => <TabItem tab={tab} index={i()} windowId={props.id} />}
 				</For>

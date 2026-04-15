@@ -11,6 +11,7 @@ interface TabsStore {
 	pendingMoves: Set<number>;
 	tabCount: Accessor<number>;
 	windowOrder: Store<number[]>;
+	tabsByWindow: Accessor<Map<number, Tab[]>>;
 }
 
 const TabsContext = createContext<TabsStore>();
@@ -47,26 +48,25 @@ export function TabsProvider(props: ParentProps) {
 			const raw = await browser.tabs.query({});
 
 			const windowIds = raw
-				.map((t) => t.windowId)
-				.filter((v, i, a) => a.indexOf(v) === i);
+				.map((tab) => tab.windowId)
+				.filter(
+					(windowId, index, allWindowIds) =>
+						allWindowIds.indexOf(windowId) === index,
+				);
 			setWindowOrder(windowIds);
 
 			const valid = raw.filter(isValidTab);
 
-			// Build tabs first (need full Tab objects for urlToTabIds)
 			const tabsWithFlags: Record<number, Tab> = {};
 			for (const bt of valid) {
 				tabsWithFlags[bt.id] = bt;
 			}
 
-			// Build url -> tab IDs map
 			const urlToTabIds = buildUrlToTabIds(Object.values(tabsWithFlags));
 
-			// Update isDuplicate flags based on URL counts
 			for (const tab of Object.values(tabsWithFlags)) {
 				const ids = urlToTabIds.get(tab.url);
 				if (ids && ids.length > 1) {
-					// Find oldest (lowest ID)
 					const oldestId = Math.min(...ids);
 					tab.isDuplicate = tab.id !== oldestId;
 				}
@@ -82,7 +82,9 @@ export function TabsProvider(props: ParentProps) {
 			}
 			if (pendingMoves.has(tab.id)) return;
 
-			const existing = Object.values(tabs).find((t) => t.url === tab.url);
+			const existing = Object.values(tabs).find(
+				(existingTab) => existingTab.url === tab.url,
+			);
 			tab.isDuplicate = !!existing;
 
 			setTabs(tab.id, tab);
@@ -95,29 +97,27 @@ export function TabsProvider(props: ParentProps) {
 			const { windowId, index: removedIndex } = removedTab;
 
 			const sameUrlTabs = Object.values(tabs).filter(
-				(t) => t.url === removedTab.url && t.id !== tabId,
+				(tab) => tab.url === removedTab.url && tab.id !== tabId,
 			);
 			const wasOldest =
-				sameUrlTabs.length === 0 || sameUrlTabs.every((t) => t.id > tabId);
+				sameUrlTabs.length === 0 || sameUrlTabs.every((tab) => tab.id > tabId);
 
 			setTabs(
-				produce((s) => {
-					delete s[tabId];
+				produce((tabs) => {
+					delete tabs[tabId];
 
-					// shift indexes down for tabs after the removed one in same window
-					for (const id in s) {
-						const tab = s[id];
+					for (const id in tabs) {
+						const tab = tabs[id];
 						if (tab.windowId === windowId && tab.index > removedIndex) {
 							tab.index--;
 						}
 					}
 
-					// promote next oldest duplicate if needed
 					if (wasOldest && sameUrlTabs.length > 0) {
 						const nextOldest = sameUrlTabs.reduce((a, b) =>
 							a.id < b.id ? a : b,
 						);
-						s[nextOldest.id].isDuplicate = false;
+						tabs[nextOldest.id].isDuplicate = false;
 					}
 				}),
 			);
@@ -129,15 +129,39 @@ export function TabsProvider(props: ParentProps) {
 			tab: Browser.tabs.Tab,
 		) => {
 			if (!isValidTab(tab)) return;
-			setTabs(tab.id, (t) => ({ ...t, ...tab }));
+
+			setTabs(
+				produce((s) => {
+					const prevUrl = s[tab.id]?.url;
+					const urlChanged = prevUrl !== tab.url;
+
+					Object.assign(s[tab.id], tab);
+
+					if (urlChanged) {
+						const affectedUrls = new Set([prevUrl, tab.url].filter(Boolean));
+
+						for (const url of affectedUrls) {
+							const sharing = Object.values(s).filter((t) => t.url === url);
+							if (sharing.length <= 1) {
+								if (sharing[0]) sharing[0].isDuplicate = false;
+							} else {
+								const oldestId = Math.min(...sharing.map((t) => t.id));
+								for (const t of sharing) {
+									t.isDuplicate = t.id !== oldestId;
+								}
+							}
+						}
+					}
+				}),
+			);
 		};
 
 		const onActivated = ({ tabId, windowId }: Browser.tabs.OnActivatedInfo) => {
 			setTabs(
-				produce((s) => {
-					for (const id in s) {
-						if (s[id].windowId === windowId) {
-							s[id].active = s[id].id === tabId;
+				produce((tabs) => {
+					for (const id in tabs) {
+						if (tabs[id].windowId === windowId) {
+							tabs[id].active = tabs[id].id === tabId;
 						}
 					}
 				}),
@@ -150,9 +174,9 @@ export function TabsProvider(props: ParentProps) {
 			const { windowId, fromIndex, toIndex } = info;
 
 			setTabs(
-				produce((s) => {
-					for (const id in s) {
-						const tab = s[id];
+				produce((tabs) => {
+					for (const id in tabs) {
+						const tab = tabs[id];
 						if (tab.windowId !== windowId) continue;
 
 						if (Number(id) === tabId) {
@@ -160,12 +184,9 @@ export function TabsProvider(props: ParentProps) {
 							continue;
 						}
 
-						// shift tabs between fromIndex and toIndex
 						if (fromIndex < toIndex) {
-							// moved down — tabs in between shift up
 							if (tab.index > fromIndex && tab.index <= toIndex) tab.index--;
 						} else {
-							// moved up — tabs in between shift down
 							if (tab.index >= toIndex && tab.index < fromIndex) tab.index++;
 						}
 					}
@@ -178,10 +199,9 @@ export function TabsProvider(props: ParentProps) {
 			const { oldWindowId, oldPosition } = info;
 
 			setTabs(
-				produce((s) => {
-					// shift tabs after the gap down by 1
-					for (const id in s) {
-						const tab = s[id];
+				produce((tabs) => {
+					for (const id in tabs) {
+						const tab = tabs[id];
 						if (tab.windowId !== oldWindowId) continue;
 						if (Number(id) === tabId) continue;
 						if (tab.index > oldPosition) tab.index--;
@@ -195,18 +215,16 @@ export function TabsProvider(props: ParentProps) {
 			const { newWindowId, newPosition } = info;
 
 			setTabs(
-				produce((s) => {
-					// make room in new window
-					for (const id in s) {
-						const tab = s[id];
+				produce((tabs) => {
+					for (const id in tabs) {
+						const tab = tabs[id];
 						if (tab.windowId !== newWindowId) continue;
 						if (Number(id) === tabId) continue;
 						if (tab.index >= newPosition) tab.index++;
 					}
 
-					// update the tab itself
-					s[tabId].index = newPosition;
-					s[tabId].windowId = newWindowId;
+					tabs[tabId].index = newPosition;
+					tabs[tabId].windowId = newWindowId;
 				}),
 			);
 		};
@@ -238,9 +256,26 @@ export function TabsProvider(props: ParentProps) {
 
 	const tabCount = createMemo(() => Object.keys(tabs).length);
 
+	const tabsByWindow = createMemo(() => {
+		const map = new Map<number, Tab[]>();
+		for (const tab of Object.values(tabs)) {
+			const list = map.get(tab.windowId) ?? [];
+			list.push(tab);
+			map.set(tab.windowId, list);
+		}
+		return map;
+	});
+
 	return (
 		<TabsContext.Provider
-			value={{ tabs, setTabs, pendingMoves, tabCount, windowOrder }}
+			value={{
+				tabs,
+				setTabs,
+				pendingMoves,
+				tabCount,
+				windowOrder,
+				tabsByWindow,
+			}}
 		>
 			{props.children}
 		</TabsContext.Provider>

@@ -1,3 +1,4 @@
+import { isSortable } from "@dnd-kit/dom/sortable";
 import Header from "@/components/Header";
 import Window from "@/components/Window";
 import { createDragHandlers } from "@/store/drag";
@@ -7,9 +8,11 @@ import { DragDropProvider } from "@dnd-kit/solid";
 
 function TabList() {
 	const { tabs, setTabs, pendingMoves, windowOrder } = useTabsContext();
+	const [overWindowId, setOverWindowId] = createSignal<number | null>(null);
+
 	const [search, setSearch] = createSignal("");
 
-	const { handleDragStart, onDragEnd } = createDragHandlers({
+	const { onDragEnd } = createDragHandlers({
 		setTabs,
 		pendingMoves,
 	});
@@ -18,14 +21,10 @@ function TabList() {
 		const needle = search().toLowerCase().trim();
 		if (!needle) return Object.keys(tabs).length;
 		return Object.values(tabs).filter(
-			(t) => t.title?.toLowerCase().includes(needle) || t.url.includes(needle),
+			(tab) =>
+				tab.title?.toLowerCase().includes(needle) || tab.url.includes(needle),
 		).length;
 	});
-
-	// createEffect(() => {
-	// 	derived(); // access
-	// 	performance.mark("derived-recompute");
-	// });
 
 	return (
 		<>
@@ -33,13 +32,26 @@ function TabList() {
 			<main>
 				<div id="content">
 					<DragDropProvider
-						onDragStart={handleDragStart}
-						// onDragOver={() => {}}
-						onDragEnd={onDragEnd}
+						onDragOver={(event) => {
+							const target = event.operation.target;
+
+							if (!target || !isSortable(target)) return;
+							const windowId = target.group as number;
+
+							setOverWindowId(windowId);
+						}}
+						onDragEnd={(event) => {
+							setOverWindowId(null);
+							onDragEnd(event);
+						}}
 					>
 						<For each={windowOrder}>
-							{(windowId, i) => (
-								<Window id={windowId} index={i()} search={search} />
+							{(windowId) => (
+								<Window
+									id={windowId}
+									search={search}
+									isDropTarget={overWindowId() === windowId}
+								/>
 							)}
 						</For>
 					</DragDropProvider>

@@ -1,103 +1,86 @@
-import type { DragEndEvent, DragStartEvent } from "@dnd-kit/abstract";
-import { SortableDraggable, SortableDroppable } from "@dnd-kit/dom/sortable";
-
+import { isSortable } from "@dnd-kit/dom/sortable";
+import type { DragDropEventHandlers } from "@dnd-kit/solid";
 import type { SetStoreFunction } from "solid-js/store";
 import type { Tab } from "@/types";
 
-type StartEvent = Parameters<DragStartEvent>[0];
-type EndEvent = Parameters<DragEndEvent>[0];
-
 interface DragHandlersInput {
 	setTabs: SetStoreFunction<Record<number, Tab>>;
-
 	pendingMoves: Set<number>;
 }
 
+type DragEndEvent = Parameters<
+	NonNullable<DragDropEventHandlers["onDragEnd"]>
+>[0];
+
 interface DragHandlers {
-	handleDragStart: (event: StartEvent) => Promise<void>;
-	onDragEnd: (event: EndEvent) => Promise<void>;
+	onDragEnd: (event: DragEndEvent) => Promise<void>;
 }
 
 export function createDragHandlers({
 	setTabs,
 	pendingMoves,
 }: DragHandlersInput): DragHandlers {
-	let fromWindowId: number | null = null;
-
-	const handleDragStart = async (event: StartEvent) => {
-		const { source } = event.operation;
-		if (!(source instanceof SortableDraggable)) return;
-		fromWindowId = source.group as number;
-	};
-	const onDragEnd = async (event: EndEvent) => {
+	const onDragEnd = async (event: DragEndEvent) => {
 		if (event.canceled) return;
 
-		const { source, target } = event.operation;
+		const { source } = event.operation;
 
-		if (
-			!(source instanceof SortableDraggable) ||
-			!(target instanceof SortableDroppable)
-		)
-			return;
+		if (!isSortable(source)) return;
+		const { initialIndex, index, initialGroup, group } = source;
 
 		const tabId = source.id as number;
-		// const fromWindowId = source.group as number;
-		const fromIndex = source.index;
-		const toWindowId = target.group as number;
-		const toIndex = target.index;
 
-		// Update store optimistically
-		if (fromWindowId === toWindowId) {
-			// same window
+		if (initialGroup == null || group == null) return;
+
+		if (initialGroup === group) {
 			setTabs(
-				produce((s) => {
-					for (const id in s) {
-						const tab = s[id];
-						if (tab.windowId !== fromWindowId) continue;
+				produce((tabs) => {
+					for (const id in tabs) {
+						const tab = tabs[id];
+						if (tab.windowId !== initialGroup) continue;
 						if (Number(id) === tabId) {
-							tab.index = toIndex;
+							tab.index = index;
 							continue;
 						}
-						if (fromIndex < toIndex) {
-							if (tab.index > fromIndex && tab.index <= toIndex) tab.index--;
+						if (initialIndex < index) {
+							if (tab.index > initialIndex && tab.index <= index) tab.index--;
 						} else {
-							if (tab.index >= toIndex && tab.index < fromIndex) tab.index++;
+							if (tab.index >= index && tab.index < initialIndex) tab.index++;
 						}
 					}
 				}),
 			);
 		} else {
-			// cross window
 			setTabs(
-				produce((s) => {
-					// close gap in old window
-					for (const id in s) {
-						const tab = s[id];
-						if (tab.windowId !== fromWindowId) continue;
+				produce((tabs) => {
+					for (const id in tabs) {
+						const tab = tabs[id];
+						if (tab.windowId !== initialGroup) continue;
 						if (Number(id) === tabId) continue;
-						if (tab.index > fromIndex) tab.index--;
+						if (tab.index > initialIndex) tab.index--;
 					}
-					// make room in new window
-					for (const id in s) {
-						const tab = s[id];
-						if (tab.windowId !== toWindowId) continue;
+					for (const id in tabs) {
+						const tab = tabs[id];
+						if (tab.windowId !== group) continue;
 						if (Number(id) === tabId) continue;
-						if (tab.index >= toIndex) tab.index++;
+						if (tab.index >= index) tab.index++;
 					}
-					// update the tab itself
-					s[tabId].index = toIndex;
-					s[tabId].windowId = toWindowId;
+					tabs[tabId].index = index;
+					tabs[tabId].windowId = group as number;
 				}),
 			);
 		}
 
 		pendingMoves.add(tabId);
 		try {
-			await browser.tabs.move(tabId, { windowId: toWindowId, index: toIndex });
+			await browser.tabs.move(tabId, {
+				windowId: group as number,
+				index: index,
+			});
 		} finally {
 			pendingMoves.delete(tabId);
 		}
 	};
 
-	return { handleDragStart, onDragEnd };
+	return { onDragEnd };
 }
