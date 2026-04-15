@@ -12,11 +12,18 @@ export default function Header({ search, setSearch, tabCount }: HeaderProps) {
 
 	const duplicatesIds = () => {
 		return Object.values(tabs)
-			.filter((t) => t.isDuplicate)
-			.map((t) => t.id);
+			.filter((tab) => tab.isDuplicate)
+			.map((tab) => tab.id);
+	};
+
+	const loadedIds = () => {
+		return Object.values(tabs)
+			.filter((tab) => !tab.discarded && !tab.active)
+			.map((tab) => tab.id);
 	};
 
 	const duplicateCount = () => duplicatesIds().length;
+	const loadedCount = () => loadedIds().length;
 
 	const handleSearch = (
 		event: InputEvent & { currentTarget: HTMLInputElement },
@@ -38,6 +45,14 @@ export default function Header({ search, setSearch, tabCount }: HeaderProps) {
 	const handleDuplicatesClose = async (event: MouseEvent) => {
 		event.preventDefault();
 		await browser.tabs.remove(duplicatesIds());
+	};
+
+	const handleLoadedUnload = async (event: MouseEvent) => {
+		event.preventDefault();
+		const discardedTabs = Promise.all(
+			loadedIds().map((id) => browser.tabs.discard(id)),
+		);
+		await discardedTabs;
 	};
 
 	return (
@@ -82,9 +97,16 @@ export default function Header({ search, setSearch, tabCount }: HeaderProps) {
 					{tabCount()} tabs
 				</div>
 				<div class="actions">
-					<span class="shortcut">[↑↓]</span>
-					<span class="shortcut">[ENTER]</span>
-					<span class="shortcut">[DEL]</span>
+					<button
+						type="button"
+						class="dup-btn"
+						disabled={loadedCount() === 0}
+						title="Remove loaded tabs"
+						onClick={handleLoadedUnload}
+					>
+						[REMOVE LOADED]
+						{loadedCount() > 0 && ` (${loadedCount()})`}]
+					</button>
 					<button
 						type="button"
 						class="dup-btn"
