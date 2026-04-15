@@ -1,6 +1,8 @@
 import type { Browser } from "wxt/browser";
 import type { Tab } from "@/types";
 
-export function isValidTab(t: Browser.tabs.Tab): t is Tab {
-	return t.id !== undefined && t.url !== undefined && t.windowId !== undefined;
+export function isValidTab(tab: Browser.tabs.Tab): tab is Tab {
+	return (
+		tab.id !== undefined && tab.url !== undefined && tab.windowId !== undefined
+	);
 }

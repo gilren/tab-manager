@@ -18,7 +18,7 @@ export default function TabItem(props: TabItemProps) {
 		get group() {
 			return props.windowId;
 		},
-		type: "tab",
+		type: "item",
 	});
 
 	const handleLoaded = async (event: MouseEvent, id: number) => {
