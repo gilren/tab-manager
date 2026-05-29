@@ -34,13 +34,12 @@ export default function Window(props: WindowProps) {
 		console.log("WINDOW RERENDER", props.id);
 		// console.log(windowTabs);
 		// console.log(mTabs);
-		return mTabs;
-		// .filter(
-		// 	(tab) =>
-		// 		!needle ||
-		// 		tab.title?.toLowerCase().includes(needle) ||
-		// 		tab.url.includes(needle),
-		// );
+		return mTabs.filter(
+			(tab) =>
+				!needle ||
+				tab.title?.toLowerCase().includes(needle) ||
+				tab.url.includes(needle),
+		);
 	});
 
 	// createEffect(() => {
@@ -51,9 +50,18 @@ export default function Window(props: WindowProps) {
 	// 	console.log(`Window ${props.id} updated, length:`, currentOrder?.length);
 	// 	console.log("Full Order:", unwrap(currentOrder));
 	// });
-	const loadedTabs = createMemo(() => {
-		return myTabs().filter((tab) => !tab.discarded);
-	});
+	const loadedTabs = createMemo(() => myTabs().filter((tab) => !tab.discarded));
+
+	const duplicatesIds = createMemo(() =>
+		myTabs()
+			.filter((t) => t.isDuplicate)
+			.map((t) => t.id),
+	);
+
+	const handleDuplicated = async (event: MouseEvent) => {
+		event.stopPropagation();
+		await browser.tabs.remove(duplicatesIds());
+	};
 
 	const handleLoaded = async (event: MouseEvent) => {
 		event.stopPropagation();
@@ -76,6 +84,29 @@ export default function Window(props: WindowProps) {
 					<span class="window-count">[{myTabs().length}]</span>
 				</div>
 				<div class="window__actions">
+					<Show when={duplicatesIds().length > 0}>
+						<button
+							type="button"
+							class="tab__btn tab__btn--duplicated"
+							onclick={(event) => handleDuplicated(event)}
+						>
+							<svg
+								xmlns="http://www.w3.org/2000/svg"
+								width="14"
+								height="14"
+								viewBox="0 0 24 24"
+								fill="none"
+								stroke="currentColor"
+								stroke-width="2"
+								stroke-linecap="round"
+								stroke-linejoin="round"
+							>
+								<title>Tab duplicated</title>
+								<path d="M21 21H8a2 2 0 0 1-1.42-.587l-3.994-3.999a2 2 0 0 1 0-2.828l10-10a2 2 0 0 1 2.829 0l5.999 6a2 2 0 0 1 0 2.828L12.834 21" />
+								<path d="m5.082 11.09 8.828 8.828" />
+							</svg>
+						</button>
+					</Show>
 					<Show when={loadedTabs().length > 1}>
 						<button
 							type="button"
