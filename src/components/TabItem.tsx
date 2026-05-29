@@ -1,10 +1,13 @@
 import { useSortable } from "@dnd-kit/solid/sortable";
+import { unwrap } from "solid-js/store";
+import { useTabsContext } from "@/store/tabs";
 import type { Tab } from "@/types";
 
 interface TabItemProps {
 	tab: Tab;
 	index: number;
 	windowId: number;
+	isActive: boolean;
 }
 
 export default function TabItem(props: TabItemProps) {
@@ -18,7 +21,6 @@ export default function TabItem(props: TabItemProps) {
 		get group() {
 			return props.windowId;
 		},
-		type: "item",
 	});
 
 	const handleLoaded = async (event: MouseEvent, id: number) => {
@@ -62,9 +64,10 @@ export default function TabItem(props: TabItemProps) {
 			tabindex="0"
 			classList={{
 				"tab-duplicate": props.tab.isDuplicate,
-				"tab-active": props.tab.active,
+				"tab-active": props.isActive,
 				"tab-pinned": props.tab.pinned,
 				"tab-dragging": isDragging(),
+				"tab-zero": props.tab.id === 40,
 			}}
 		>
 			<img
@@ -73,9 +76,9 @@ export default function TabItem(props: TabItemProps) {
 				alt={`Favicon - ${props.tab.title}`}
 			/>
 			<div class="tab-main">
-				{/* <div class="tab-debug">
-					{props.tab.windowId} - {props.tab.index}
-					</div> */}
+				<div class="tab-debug">
+					{props.tab.id} - {props.index}
+				</div>
 
 				<h2 class="tab-title">{props.tab.title}</h2>
 				<span class="tab-url">{props.tab.url}</span>
@@ -100,7 +103,7 @@ export default function TabItem(props: TabItemProps) {
 				</Show>
 			</div>
 			<div class="tab__actions">
-				<Show when={!props.tab.discarded && !props.tab.active}>
+				<Show when={!props.tab.discarded && !props.isActive}>
 					<button
 						type="button"
 						class="tab__btn tab__btn--loaded"

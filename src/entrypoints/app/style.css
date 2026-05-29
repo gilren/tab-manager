@@ -337,3 +337,7 @@ body {
 	transform: translateX(0);
 	opacity: 1;
 }
+
+.tab-zero {
+	background: red !important;
+}

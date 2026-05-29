@@ -4,23 +4,29 @@ import { useTabsContext } from "@/store/tabs";
 interface HeaderProps {
 	search: Accessor<string>;
 	setSearch: Setter<string>;
-	tabCount: Accessor<number>;
 }
 
-export default function Header({ search, setSearch, tabCount }: HeaderProps) {
+export default function Header({ search, setSearch }: HeaderProps) {
 	const { tabs } = useTabsContext();
 
-	const duplicatesIds = () => {
-		return Object.values(tabs)
-			.filter((tab) => tab.isDuplicate)
-			.map((tab) => tab.id);
-	};
+	const tabCount = createMemo(() => {
+		const needle = search().toLowerCase().trim();
+		if (!needle) return Object.keys(tabs).length;
+		return Object.values(tabs).filter(
+			(t) => t.title?.toLowerCase().includes(needle) || t.url.includes(needle),
+		).length;
+	});
 
-	const loadedIds = () => {
-		return Object.values(tabs)
-			.filter((tab) => !tab.discarded && !tab.active)
-			.map((tab) => tab.id);
-	};
+	const duplicatesIds = createMemo(() =>
+		Object.values(tabs)
+			.filter((t) => t.isDuplicate)
+			.map((t) => t.id),
+	);
+	const loadedIds = createMemo(() =>
+		Object.values(tabs)
+			.filter((t) => !t.discarded)
+			.map((t) => t.id),
+	);
 
 	const duplicateCount = () => duplicatesIds().length;
 	const loadedCount = () => loadedIds().length;
@@ -53,6 +59,7 @@ export default function Header({ search, setSearch, tabCount }: HeaderProps) {
 			loadedIds().map((id) => browser.tabs.discard(id)),
 		);
 		await discardedTabs;
+		console.log(loadedIds());
 	};
 
 	return (

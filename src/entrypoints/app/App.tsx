@@ -1,56 +1,45 @@
-import { isSortable } from "@dnd-kit/dom/sortable";
 import Header from "@/components/Header";
 import Window from "@/components/Window";
-import { createDragHandlers } from "@/store/drag";
 import { TabsProvider, useTabsContext } from "@/store/tabs";
 import "solid-devtools";
+import { move } from "@dnd-kit/helpers";
 import { DragDropProvider } from "@dnd-kit/solid";
+import { isSortable } from "@dnd-kit/solid/sortable";
+import { unwrap } from "solid-js/store";
+import { createOnDragEnd } from "@/store/drag";
 
 function TabList() {
-	const { tabs, setTabs, pendingMoves, windowOrder } = useTabsContext();
+	const { tabsByWindow, pendingMoves } = useTabsContext();
 	const [overWindowId, setOverWindowId] = createSignal<number | null>(null);
-
 	const [search, setSearch] = createSignal("");
 
-	const { onDragEnd } = createDragHandlers({
-		setTabs,
-		pendingMoves,
-	});
-
-	const tabCount = createMemo(() => {
-		const needle = search().toLowerCase().trim();
-		if (!needle) return Object.keys(tabs).length;
-		return Object.values(tabs).filter(
-			(tab) =>
-				tab.title?.toLowerCase().includes(needle) || tab.url.includes(needle),
-		).length;
-	});
+	const onDragEnd = createOnDragEnd();
 
 	return (
 		<>
-			<Header search={search} setSearch={setSearch} tabCount={tabCount} />
+			<Header search={search} setSearch={setSearch} />
 			<main>
 				<div id="content">
 					<DragDropProvider
 						onDragOver={(event) => {
+							// event.preventDefault();
 							const target = event.operation.target;
-
 							if (!target || !isSortable(target)) return;
 							const windowId = target.group as number;
-
 							setOverWindowId(windowId);
 						}}
 						onDragEnd={(event) => {
 							setOverWindowId(null);
+
 							onDragEnd(event);
 						}}
 					>
-						<For each={windowOrder}>
+						<For each={unwrap(Object.keys(tabsByWindow))}>
 							{(windowId) => (
 								<Window
-									id={windowId}
+									id={Number(windowId)}
 									search={search}
-									isDropTarget={overWindowId() === windowId}
+									isDropTarget={overWindowId() === Number(windowId)}
 								/>
 							)}
 						</For>
@@ -63,11 +52,11 @@ function TabList() {
 
 function App() {
 	return (
-		<TabsProvider>
-			<Suspense fallback={<div>Loading...</div>}>
+		<Suspense fallback={<div>Loading...</div>}>
+			<TabsProvider>
 				<TabList />
-			</Suspense>
-		</TabsProvider>
+			</TabsProvider>
+		</Suspense>
 	);
 }
 

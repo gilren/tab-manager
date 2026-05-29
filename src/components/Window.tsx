@@ -1,4 +1,5 @@
 import type { Accessor } from "solid-js";
+import { unwrap } from "solid-js/store";
 import { useTabsContext } from "@/store/tabs";
 
 interface WindowProps {
@@ -8,21 +9,48 @@ interface WindowProps {
 }
 
 export default function Window(props: WindowProps) {
-	const { tabsByWindow } = useTabsContext();
+	const [activeTabId, setActiveTabId] = createSignal<number | null>(null);
+	const { tabs, tabsByWindow } = useTabsContext();
+
+	// onMount(() => {
+	// 	const active = tabsByWindow[props.id]
+	// 		?.find((t) => t.active);
+	// 	console.log("active", active);
+	// 	if (active) setActiveTabId(active.id);
+
+	// 	const onActivated = ({ tabId, windowId }: Browser.tabs.OnActivatedInfo) => {
+	// 		if (windowId !== props.id) return;
+	// 		setActiveTabId(tabId);
+	// 	};
+
+	// 	browser.tabs.onActivated.addListener(onActivated);
+	// 	onCleanup(() => browser.tabs.onActivated.removeListener(onActivated));
+	// });
 
 	const myTabs = createMemo(() => {
 		const needle = props.search().toLowerCase().trim();
-		const windowTabs = tabsByWindow().get(props.id) ?? [];
-		return windowTabs
-			.filter(
-				(tab) =>
-					!needle ||
-					tab.title?.toLowerCase().includes(needle) ||
-					tab.url.includes(needle),
-			)
-			.sort((a, b) => a.index - b.index);
+		const windowTabs = tabsByWindow[props.id];
+		const mTabs = windowTabs.map((id) => tabs[id]).filter(Boolean);
+		console.log("WINDOW RERENDER", props.id);
+		// console.log(windowTabs);
+		// console.log(mTabs);
+		return mTabs;
+		// .filter(
+		// 	(tab) =>
+		// 		!needle ||
+		// 		tab.title?.toLowerCase().includes(needle) ||
+		// 		tab.url.includes(needle),
+		// );
 	});
 
+	// createEffect(() => {
+	// 	console.log(myTabs());
+	// });
+	// createEffect(() => {
+	// 	const currentOrder = tabsByWindow[props.id];
+	// 	console.log(`Window ${props.id} updated, length:`, currentOrder?.length);
+	// 	console.log("Full Order:", unwrap(currentOrder));
+	// });
 	const loadedTabs = createMemo(() => {
 		return myTabs().filter((tab) => !tab.discarded);
 	});
@@ -97,9 +125,33 @@ export default function Window(props: WindowProps) {
 
 			<ul class="tabs">
 				<For each={myTabs()}>
-					{(tab, i) => <TabItem tab={tab} index={i()} windowId={props.id} />}
+					{(tab, index) => (
+						<TabItem
+							tab={tab}
+							index={index()}
+							isActive={tab.id === activeTabId()}
+							windowId={props.id}
+						/>
+					)}
 				</For>
 			</ul>
+
+			{/* <ul class="tabs">
+				<For each={tabsByWindow[props.id]}>
+					{(tabId) => {
+						// Access the tab object directly inside the loop
+						// This ensures 'tab' is a stable proxy from the store
+						const tab = tabs[tabId];
+						return (
+							<TabItem
+								tab={tab}
+								windowId={props.id}
+								isActive={tabId === activeTabId()}
+							/>
+						);
+					}}
+				</For>
+			</ul> */}
 		</div>
 	);
 }
