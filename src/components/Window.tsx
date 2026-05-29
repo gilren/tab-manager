@@ -72,7 +72,7 @@ export default function Window(props: WindowProps) {
 		>
 			<div class="window-header">
 				<div>
-					Window {props.id}
+					Window {props.id}{" "}
 					<span class="window-count">[{myTabs().length}]</span>
 				</div>
 				<div class="window__actions">
@@ -114,7 +114,7 @@ export default function Window(props: WindowProps) {
 							stroke-linecap="round"
 							stroke-linejoin="round"
 						>
-							<title>Close tab</title>
+							<title>Close Window</title>
 							<path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6" />
 							<path d="M3 6h18" />
 							<path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />

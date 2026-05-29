@@ -59,7 +59,6 @@ export default function Header({ search, setSearch }: HeaderProps) {
 			loadedIds().map((id) => browser.tabs.discard(id)),
 		);
 		await discardedTabs;
-		console.log(loadedIds());
 	};
 
 	return (
