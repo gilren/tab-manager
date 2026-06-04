@@ -67,7 +67,6 @@ export default function TabItem(props: TabItemProps) {
 				"tab-active": props.isActive,
 				"tab-pinned": props.tab.pinned,
 				"tab-dragging": isDragging(),
-				"tab-zero": props.tab.id === 40,
 			}}
 		>
 			<img

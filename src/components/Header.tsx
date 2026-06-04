@@ -7,7 +7,7 @@ interface HeaderProps {
 }
 
 export default function Header({ search, setSearch }: HeaderProps) {
-	const { tabs } = useTabsContext();
+	const { tabs, tabsByWindow } = useTabsContext();
 
 	const tabCount = createMemo(() => {
 		const needle = search().toLowerCase().trim();
@@ -22,12 +22,14 @@ export default function Header({ search, setSearch }: HeaderProps) {
 			.filter((t) => t.isDuplicate)
 			.map((t) => t.id),
 	);
+
 	const loadedIds = createMemo(() =>
 		Object.values(tabs)
 			.filter((t) => !t.discarded)
 			.map((t) => t.id),
 	);
 
+	const windowCount = () => Object.values(tabsByWindow).length;
 	const duplicateCount = () => duplicatesIds().length;
 	const loadedCount = () => loadedIds().length;
 
@@ -59,7 +61,6 @@ export default function Header({ search, setSearch }: HeaderProps) {
 			loadedIds().map((id) => browser.tabs.discard(id)),
 		);
 		await discardedTabs;
-		console.log(loadedIds());
 	};
 
 	return (
@@ -106,17 +107,17 @@ export default function Header({ search, setSearch }: HeaderProps) {
 				<div class="actions">
 					<button
 						type="button"
-						class="dup-btn"
-						disabled={loadedCount() === 0}
+						class="btn btn-loaded"
+						disabled={loadedCount() === windowCount()}
 						title="Remove loaded tabs"
 						onClick={handleLoadedUnload}
 					>
-						[REMOVE LOADED]
+						[REMOVE LOADED
 						{loadedCount() > 0 && ` (${loadedCount()})`}]
 					</button>
 					<button
 						type="button"
-						class="dup-btn"
+						class="btn btn-duplicated"
 						disabled={duplicateCount() === 0}
 						title="Remove duplicate tabs"
 						onClick={handleDuplicatesClose}

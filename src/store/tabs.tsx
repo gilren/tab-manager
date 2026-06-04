@@ -25,7 +25,7 @@ export function useTabsContext(): TabsStore {
 	return context;
 }
 
-function buildUrlToTabIds(tabs: Tab[]): Map<string, number[]> {
+function groupTabsByUrl(tabs: Tab[]): Map<string, number[]> {
 	const map = new Map<string, number[]>();
 	for (const tab of tabs) {
 		const existing = map.get(tab.url);
@@ -44,22 +44,27 @@ export function TabsProvider(props: ParentProps) {
 		{},
 	);
 
-	// const [data, { refetch }] = createResource(async () => {
-	// 	return await browser.tabs.query({});
-	// });
-	//
 	const [data] = createResource(async () => browser.tabs.query({}));
 
 	const [windowOrder, setWindowOrder] = createStore<number[]>([]);
 	const pendingMoves = new Set<number>();
+
+	const removeWindow = (windowId: number) => {
+		batch(() => {
+			setTabsByWindow(
+				produce((state) => {
+					delete state[windowId];
+				}),
+			);
+			setWindowOrder((ids) => ids.filter((id) => id !== windowId));
+		});
+	};
 
 	createEffect(() => {
 		const allTabs = data();
 		if (!allTabs) return;
 
 		const valid = allTabs.filter(isValidTab);
-
-		console.log(valid);
 
 		// Map tabs to {id: Tab}
 		const tabsWithFlags: Record<number, Tab> = {};
@@ -68,10 +73,10 @@ export function TabsProvider(props: ParentProps) {
 		}
 
 		// Identify duplicates
-		const urlToTabIds = buildUrlToTabIds(Object.values(tabsWithFlags));
+		const groupedTabIds = groupTabsByUrl(Object.values(tabsWithFlags));
 
 		for (const tab of Object.values(tabsWithFlags)) {
-			const ids = urlToTabIds.get(tab.url);
+			const ids = groupedTabIds.get(tab.url);
 			if (ids && ids.length > 1) {
 				const oldestId = Math.min(...ids);
 				tab.isDuplicate = tab.id !== oldestId;
@@ -86,6 +91,8 @@ export function TabsProvider(props: ParentProps) {
 				byWindow[tab.windowId].push(tab.id);
 			}
 		});
+
+		console.log("Running effect from tabs");
 
 		batch(() => {
 			setTabs(tabsWithFlags);
@@ -153,12 +160,7 @@ export function TabsProvider(props: ParentProps) {
 
 				// Remove the window if this tab was alone
 				if (nextTabsByWindow.length === 0) {
-					setTabsByWindow(
-						produce((state) => {
-							delete state[windowId];
-						}),
-					);
-					setWindowOrder((ids) => ids.filter((id) => id !== windowId));
+					removeWindow(windowId);
 				}
 			});
 		};
@@ -202,6 +204,8 @@ export function TabsProvider(props: ParentProps) {
 							}
 						}
 					}
+
+					console.log("actually batched in onUpdated");
 				}),
 			);
 		};
@@ -226,20 +230,30 @@ export function TabsProvider(props: ParentProps) {
 
 			console.log("=== onDetached ===");
 
+			const nextTabsByWindow = (tabsByWindow[oldWindowId] ?? []).filter(
+				(id) => id !== tabId,
+			);
+
 			batch(() => {
 				setTabs(
 					produce((tabs) => {
 						for (const id in tabs) {
 							const tab = tabs[id];
 							if (tab.windowId !== oldWindowId) continue;
+							console.log(id);
 							if (Number(id) === tabId) continue;
+							// TODO: We might not need to do that anymore
 							if (tab.index > oldPosition) tab.index--;
 						}
 					}),
 				);
-
-				setTabsByWindow(oldWindowId, (arr) => arr.filter((id) => id !== tabId));
+				setTabsByWindow(oldWindowId, nextTabsByWindow);
+				// Remove the window if this tab was alone
 			});
+			if (nextTabsByWindow.length === 0) {
+				console.log("je passe");
+				removeWindow(oldWindowId);
+			}
 		};
 
 		const onAttached = (tabId: number, info: Browser.tabs.OnAttachedInfo) => {
@@ -270,12 +284,7 @@ export function TabsProvider(props: ParentProps) {
 		};
 
 		const onWindowRemoved = (windowId: number) => {
-			setTabsByWindow((current) => {
-				const { [windowId]: _, ...rest } = current;
-				return rest;
-			});
-			console.log(tabsByWindow);
-			setWindowOrder((ids) => ids.filter((id) => id !== windowId));
+			removeWindow(windowId);
 		};
 
 		browser.tabs.onCreated.addListener(onCreated);
