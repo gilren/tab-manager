@@ -17,11 +17,16 @@ export default function Header({ search, setSearch }: HeaderProps) {
 		).length;
 	});
 
-	const duplicatesIds = createMemo(() =>
-		Object.values(tabs)
-			.filter((t) => t.isDuplicate)
-			.map((t) => t.id),
-	);
+	const matchingIds = createMemo(() => {
+		const needle = search().toLowerCase().trim();
+		if (!needle) return [];
+		return Object.values(tabs)
+			.filter(
+				(t) =>
+					t.title?.toLowerCase().includes(needle) || t.url.includes(needle),
+			)
+			.map((t) => t.id);
+	});
 
 	const loadedIds = createMemo(() =>
 		Object.values(tabs)
@@ -29,9 +34,22 @@ export default function Header({ search, setSearch }: HeaderProps) {
 			.map((t) => t.id),
 	);
 
+	const duplicatesIds = createMemo(() =>
+		Object.values(tabs)
+			.filter((t) => t.isDuplicate)
+			.map((t) => t.id),
+	);
+
+	const aiTabIds = createMemo(() =>
+		Object.values(tabs)
+			.filter((t) => t.isAI)
+			.map((t) => t.id),
+	);
+
 	const windowCount = () => Object.values(tabsByWindow).length;
 	const duplicateCount = () => duplicatesIds().length;
-	const loadedCount = () => loadedIds().length;
+	const loadedCount = () => loadedIds().length - windowCount();
+	const aiCount = () => aiTabIds().length;
 
 	const handleSearch = (
 		event: InputEvent & { currentTarget: HTMLInputElement },
@@ -50,17 +68,28 @@ export default function Header({ search, setSearch }: HeaderProps) {
 		setSearch("");
 	};
 
-	const handleDuplicatesClose = async (event: MouseEvent) => {
-		event.preventDefault();
-		await browser.tabs.remove(duplicatesIds());
-	};
-
 	const handleLoadedUnload = async (event: MouseEvent) => {
 		event.preventDefault();
 		const discardedTabs = Promise.all(
 			loadedIds().map((id) => browser.tabs.discard(id)),
 		);
 		await discardedTabs;
+	};
+
+	const handleDuplicatesClose = async (event: MouseEvent) => {
+		event.preventDefault();
+		await browser.tabs.remove(duplicatesIds());
+	};
+
+	const handleAiClose = async (event: MouseEvent) => {
+		event.preventDefault();
+		await browser.tabs.remove(aiTabIds());
+	};
+
+	const handleRemoveMatching = async (event: MouseEvent) => {
+		event.preventDefault();
+		await browser.tabs.remove(matchingIds());
+		setSearch("");
 	};
 
 	return (
@@ -105,26 +134,48 @@ export default function Header({ search, setSearch }: HeaderProps) {
 					{tabCount()} tabs
 				</div>
 				<div class="actions">
-					<button
-						type="button"
-						class="btn btn-loaded"
-						disabled={loadedCount() === windowCount()}
-						title="Remove loaded tabs"
-						onClick={handleLoadedUnload}
-					>
-						[REMOVE LOADED
-						{loadedCount() > 0 && ` (${loadedCount()})`}]
-					</button>
-					<button
-						type="button"
-						class="btn btn-duplicated"
-						disabled={duplicateCount() === 0}
-						title="Remove duplicate tabs"
-						onClick={handleDuplicatesClose}
-					>
-						[REMOVE DUPLICATES
-						{duplicateCount() > 0 && ` (${duplicateCount()})`}]
-					</button>
+					<Show when={!search()}>
+						<button
+							type="button"
+							class="btn btn-loaded"
+							disabled={loadedCount() === 0}
+							title="Remove loaded tabs"
+							onClick={handleLoadedUnload}
+						>
+							[REMOVE LOADED
+							{loadedCount() > 0 && ` (${loadedCount()})`}]
+						</button>
+						<button
+							type="button"
+							class="btn btn-duplicated"
+							disabled={duplicateCount() === 0}
+							title="Remove duplicate tabs"
+							onClick={handleDuplicatesClose}
+						>
+							[REMOVE DUPLICATES
+							{duplicateCount() > 0 && ` (${duplicateCount()})`}]
+						</button>
+						<button
+							type="button"
+							class="btn btn-ai"
+							disabled={aiCount() === 0}
+							title="Remove AI tabs"
+							onClick={handleAiClose}
+						>
+							[REMOVE AI{aiCount() > 0 && ` (${aiCount()})`}]
+						</button>
+					</Show>
+					<Show when={search()}>
+						<button
+							type="button"
+							class="btn btn-matching"
+							disabled={matchingIds().length === 0}
+							title="Remove all matching tabs"
+							onClick={handleRemoveMatching}
+						>
+							[REMOVE ALL MATCHING ({matchingIds().length})]
+						</button>
+					</Show>
 				</div>
 			</div>
 		</header>

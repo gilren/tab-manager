@@ -1,13 +1,10 @@
 import { useSortable } from "@dnd-kit/solid/sortable";
-import { unwrap } from "solid-js/store";
-import { useTabsContext } from "@/store/tabs";
 import type { Tab } from "@/types";
 
 interface TabItemProps {
 	tab: Tab;
 	index: number;
 	windowId: number;
-	isActive: boolean;
 }
 
 export default function TabItem(props: TabItemProps) {
@@ -64,7 +61,7 @@ export default function TabItem(props: TabItemProps) {
 			tabindex="0"
 			classList={{
 				"tab-duplicate": props.tab.isDuplicate,
-				"tab-active": props.isActive,
+				"tab-active": props.tab.active,
 				"tab-pinned": props.tab.pinned,
 				"tab-dragging": isDragging(),
 			}}
@@ -102,7 +99,7 @@ export default function TabItem(props: TabItemProps) {
 				</Show>
 			</div>
 			<div class="tab__actions">
-				<Show when={!props.tab.discarded && !props.isActive}>
+				<Show when={!props.tab.discarded && !props.tab.active}>
 					<button
 						type="button"
 						class="tab__btn tab__btn--loaded"

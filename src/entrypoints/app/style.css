@@ -21,6 +21,8 @@
 	--accent-secondary: #e9a602;
 	--accent-tertiary: #2d6fa3;
   --accent-quaternary: #2f9e6f;
+	--accent-ai: #a855f7;
+	--accent-matching: #e94560;
 
 	--border-default: #222;
 	--border-subtle: #333;
@@ -157,6 +159,32 @@ body {
 
 .btn-loaded:disabled:hover {
 	color: var(--accent-quaternary);
+}
+
+.btn-ai {
+	color: var(--accent-ai);
+}
+
+.btn-ai:hover {
+	background: var(--accent-ai);
+	color: #000;
+}
+
+.btn-ai:disabled:hover {
+	color: var(--accent-ai);
+}
+
+.btn-matching {
+	color: var(--accent-matching);
+}
+
+.btn-matching:hover {
+	background: var(--accent-matching);
+	color: #000;
+}
+
+.btn-matching:disabled:hover {
+	color: var(--accent-matching);
 }
 
 .stats {

@@ -1,7 +1,7 @@
 import type { ParentProps } from "solid-js";
 import { type SetStoreFunction, type Store, unwrap } from "solid-js/store";
 import type { Browser } from "wxt/browser";
-import type { Tab } from "@/types";
+import type { OnActivatedInfoFirefox, Tab } from "@/types";
 import { isValidTab } from "@/utils/helper";
 
 interface TabsStore {
@@ -23,6 +23,13 @@ export function useTabsContext(): TabsStore {
 		throw new Error("TabsContext is missing");
 	}
 	return context;
+}
+
+const aiKeywords = ["chatgpt", "claude", "duck.ai", "gemini"];
+
+function isAiTab(url: string): boolean {
+	const lower = url.toLowerCase();
+	return aiKeywords.some((kw) => lower.includes(kw));
 }
 
 function groupTabsByUrl(tabs: Tab[]): Map<string, number[]> {
@@ -81,6 +88,7 @@ export function TabsProvider(props: ParentProps) {
 				const oldestId = Math.min(...ids);
 				tab.isDuplicate = tab.id !== oldestId;
 			}
+			tab.isAI = isAiTab(tab.url);
 		}
 
 		// Build window record
@@ -112,7 +120,9 @@ export function TabsProvider(props: ParentProps) {
 			const existing = Object.values(unwrap(tabs)).find(
 				(existingTab) => existingTab.url === tab.url,
 			);
+
 			tab.isDuplicate = !!existing;
+			tab.isAI = isAiTab(tab.url);
 
 			batch(() => {
 				setTabs(tab.id, tab);
@@ -170,27 +180,25 @@ export function TabsProvider(props: ParentProps) {
 			info: Browser.tabs.OnUpdatedInfo,
 			tab: Browser.tabs.Tab,
 		) => {
-			if (tab.status !== "complete") return;
 			if (!isValidTab(tab)) return;
 			if (pendingMoves.has(tab.id)) return;
 
+			const relevant = ["url", "discarded"];
+			if (!Object.keys(info).some((k) => relevant.includes(k))) return;
+
 			console.log("=== onUpdated ===");
-			// console.log("info", info);
 
 			setTabs(
 				produce((s) => {
 					if (!s[tab.id]) return;
 
+					// Ignore transient about:blank that Firefox sets during tab discard/undiscard
+					// If the URL "changed" but is identical to what we have, skip the update
 					const prevUrl = s[tab.id].url;
-					const status = tab.status;
-					if (status !== "complete") return;
-
-					const relevant = ["url", "discarded", "active"];
-					if (!Object.keys(info).some((k) => relevant.includes(k))) return;
-
-					// if (prevUrl === tab.url) return;
+					if (Object.keys(info).includes("url") && prevUrl === tab.url) return;
 
 					Object.assign(s[tab.id], tab);
+					s[tab.id].isAI = isAiTab(s[tab.id].url);
 
 					const affectedUrls = new Set([prevUrl, tab.url].filter(Boolean));
 					for (const url of affectedUrls) {
@@ -208,6 +216,15 @@ export function TabsProvider(props: ParentProps) {
 					console.log("actually batched in onUpdated");
 				}),
 			);
+		};
+
+		const onActivated = ({ tabId, previousTabId }: OnActivatedInfoFirefox) => {
+			batch(() => {
+				setTabs(tabId, "active", true);
+				if (previousTabId) {
+					setTabs(previousTabId, "active", false);
+				}
+			});
 		};
 
 		const onMoved = (tabId: number, info: Browser.tabs.OnMovedInfo) => {
@@ -290,6 +307,7 @@ export function TabsProvider(props: ParentProps) {
 		browser.tabs.onCreated.addListener(onCreated);
 		browser.tabs.onRemoved.addListener(onRemoved);
 		browser.tabs.onUpdated.addListener(onUpdated);
+		browser.tabs.onActivated.addListener(onActivated);
 		browser.tabs.onMoved.addListener(onMoved);
 		browser.tabs.onDetached.addListener(onDetached);
 		browser.tabs.onAttached.addListener(onAttached);
@@ -299,6 +317,7 @@ export function TabsProvider(props: ParentProps) {
 			browser.tabs.onCreated.removeListener(onCreated);
 			browser.tabs.onRemoved.removeListener(onRemoved);
 			browser.tabs.onUpdated.removeListener(onUpdated);
+			browser.tabs.onActivated.removeListener(onActivated);
 			browser.tabs.onMoved.removeListener(onMoved);
 			browser.tabs.onDetached.removeListener(onDetached);
 			browser.tabs.onAttached.removeListener(onAttached);

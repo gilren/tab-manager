@@ -6,17 +6,9 @@ Firefox extension to manage, search, and clean up browser tabs.
 
 - **List all tabs** across all windows in one view
 - **Search** tabs by title or URL
-- **Remove duplicates**
-- **Keyboard navigation**
-
-## Keyboard Shortcuts
-
-| Shortcut | Action |
-|---------|--------|
-| `↑` `↓` | Navigate tabs |
-| `Enter` | Go to selected tab |
-| `Delete` | Close selected tab |
-| `Escape` | Clear search / unfocus tab |
+- **Remove duplicates** — close all duplicate tabs (same URL)
+- **Remove loaded** — unload all loaded tabs to free memory
+- **Remove AI** — close all tabs matching known AI URLs (ChatGPT, Claude, Duck.ai, Gemini)
 
 ## Installation
 

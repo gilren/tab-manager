@@ -1,5 +1,4 @@
 import type { Accessor } from "solid-js";
-import { unwrap } from "solid-js/store";
 import { useTabsContext } from "@/store/tabs";
 
 interface WindowProps {
@@ -9,23 +8,7 @@ interface WindowProps {
 }
 
 export default function Window(props: WindowProps) {
-	const [activeTabId, setActiveTabId] = createSignal<number | null>(null);
 	const { tabs, tabsByWindow } = useTabsContext();
-
-	// onMount(() => {
-	// 	const active = tabsByWindow[props.id]
-	// 		?.find((t) => t.active);
-	// 	console.log("active", active);
-	// 	if (active) setActiveTabId(active.id);
-
-	// 	const onActivated = ({ tabId, windowId }: Browser.tabs.OnActivatedInfo) => {
-	// 		if (windowId !== props.id) return;
-	// 		setActiveTabId(tabId);
-	// 	};
-
-	// 	browser.tabs.onActivated.addListener(onActivated);
-	// 	onCleanup(() => browser.tabs.onActivated.removeListener(onActivated));
-	// });
 
 	const myTabs = createMemo(() => {
 		const needle = props.search().toLowerCase().trim();
@@ -74,100 +57,98 @@ export default function Window(props: WindowProps) {
 	};
 
 	return (
-		<div
-			class="window-group"
-			classList={{ "window-drop-target": props.isDropTarget }}
-		>
-			<div class="window-header">
-				<div>
-					Window {props.id}{" "}
-					<span class="window-count">[{myTabs().length}]</span>
-				</div>
-				<div class="window__actions">
-					<Show when={duplicatesIds().length > 0}>
-						<button
-							type="button"
-							class="tab__btn tab__btn--duplicated"
-							onclick={(event) => handleDuplicated(event)}
-						>
-							<svg
-								xmlns="http://www.w3.org/2000/svg"
-								width="14"
-								height="14"
-								viewBox="0 0 24 24"
-								fill="none"
-								stroke="currentColor"
-								stroke-width="2"
-								stroke-linecap="round"
-								stroke-linejoin="round"
+		<Show when={myTabs().length > 0}>
+			<div
+				class="window-group"
+				classList={{ "window-drop-target": props.isDropTarget }}
+			>
+				<div class="window-header">
+					<div>
+						Window {props.id}{" "}
+						<span class="window-count">[{myTabs().length}]</span>
+					</div>
+					<div class="window__actions">
+						<Show when={duplicatesIds().length > 0}>
+							<button
+								type="button"
+								class="tab__btn tab__btn--duplicated"
+								onclick={(event) => handleDuplicated(event)}
 							>
-								<title>Tab duplicated</title>
-								<path d="M21 21H8a2 2 0 0 1-1.42-.587l-3.994-3.999a2 2 0 0 1 0-2.828l10-10a2 2 0 0 1 2.829 0l5.999 6a2 2 0 0 1 0 2.828L12.834 21" />
-								<path d="m5.082 11.09 8.828 8.828" />
-							</svg>
-						</button>
-					</Show>
-					<Show when={loadedTabs().length > 1}>
-						<button
-							type="button"
-							class="tab__btn tab__btn--loaded"
-							onclick={(event) => handleLoaded(event)}
-						>
-							<svg
-								xmlns="http://www.w3.org/2000/svg"
-								width="14"
-								height="14"
-								viewBox="0 0 24 24"
-								fill="none"
-								stroke="currentColor"
-								stroke-width="2"
-								stroke-linecap="round"
-								stroke-linejoin="round"
+								<svg
+									xmlns="http://www.w3.org/2000/svg"
+									width="14"
+									height="14"
+									viewBox="0 0 24 24"
+									fill="none"
+									stroke="currentColor"
+									stroke-width="2"
+									stroke-linecap="round"
+									stroke-linejoin="round"
+								>
+									<title>Remove duplicated tabs</title>
+									<path d="M21 21H8a2 2 0 0 1-1.42-.587l-3.994-3.999a2 2 0 0 1 0-2.828l10-10a2 2 0 0 1 2.829 0l5.999 6a2 2 0 0 1 0 2.828L12.834 21" />
+									<path d="m5.082 11.09 8.828 8.828" />
+								</svg>
+							</button>
+						</Show>
+						<Show when={loadedTabs().length > 1}>
+							<button
+								type="button"
+								class="tab__btn tab__btn--loaded"
+								onclick={(event) => handleLoaded(event)}
 							>
-								<title>Tab loaded</title>
-								<path d="M4 14a1 1 0 0 1-.78-1.63l9.9-10.2a.5.5 0 0 1 .86.46l-1.92 6.02A1 1 0 0 0 13 10h7a1 1 0 0 1 .78 1.63l-9.9 10.2a.5.5 0 0 1-.86-.46l1.92-6.02A1 1 0 0 0 11 14z" />
-							</svg>
-						</button>
-					</Show>
-					<button
-						type="button"
-						class="tab__btn tab__btn--close"
-						onclick={(event) => handleClose(event, props.id)}
-					>
-						<svg
-							xmlns="http://www.w3.org/2000/svg"
-							width="14"
-							height="14"
-							viewBox="0 0 24 24"
-							fill="none"
-							stroke="currentColor"
-							stroke-width="2"
-							stroke-linecap="round"
-							stroke-linejoin="round"
-						>
-							<title>Close Window</title>
-							<path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6" />
-							<path d="M3 6h18" />
-							<path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
-						</svg>
-					</button>
+								<svg
+									xmlns="http://www.w3.org/2000/svg"
+									width="14"
+									height="14"
+									viewBox="0 0 24 24"
+									fill="none"
+									stroke="currentColor"
+									stroke-width="2"
+									stroke-linecap="round"
+									stroke-linejoin="round"
+								>
+									<title>Unload tabs</title>
+									<path d="M4 14a1 1 0 0 1-.78-1.63l9.9-10.2a.5.5 0 0 1 .86.46l-1.92 6.02A1 1 0 0 0 13 10h7a1 1 0 0 1 .78 1.63l-9.9 10.2a.5.5 0 0 1-.86-.46l1.92-6.02A1 1 0 0 0 11 14z" />
+								</svg>
+							</button>
+						</Show>
+						<Show when={props.search().trim().length === 0}>
+							<button
+								type="button"
+								class="tab__btn tab__btn--close"
+								onclick={(event) => handleClose(event, props.id)}
+							>
+								<svg
+									xmlns="http://www.w3.org/2000/svg"
+									width="14"
+									height="14"
+									viewBox="0 0 24 24"
+									fill="none"
+									stroke="currentColor"
+									stroke-width="2"
+									stroke-linecap="round"
+									stroke-linejoin="round"
+								>
+									<title>Close Window</title>
+									<path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6" />
+									<path d="M3 6h18" />
+									<path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
+								</svg>
+							</button>
+						</Show>
+					</div>
 				</div>
-			</div>
 
-			<ul class="tabs">
-				<For each={myTabs()}>
-					{(tab, index) => (
-						<TabItem
-							tab={tab}
-							index={index()}
-							isActive={tab.id === activeTabId()}
-							windowId={props.id}
-						/>
-					)}
-				</For>
-			</ul>
+				<ul class="tabs">
+					<For each={myTabs()}>
+						{(tab, index) => (
+							<TabItem tab={tab} index={index()} windowId={props.id} />
+						)}
+					</For>
+				</ul>
 
-			{/* <ul class="tabs">
+				{/* <ul class="tabs">
 				<For each={tabsByWindow[props.id]}>
 					{(tabId) => {
 						// Access the tab object directly inside the loop
@@ -183,6 +164,7 @@ export default function Window(props: WindowProps) {
 					}}
 				</For>
 			</ul> */}
-		</div>
+			</div>
+		</Show>
 	);
 }
