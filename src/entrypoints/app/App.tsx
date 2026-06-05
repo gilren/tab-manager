@@ -2,18 +2,32 @@ import Header from "@/components/Header";
 import Window from "@/components/Window";
 import { TabsProvider, useTabsContext } from "@/store/tabs";
 import "solid-devtools";
-import { move } from "@dnd-kit/helpers";
 import { DragDropProvider } from "@dnd-kit/solid";
 import { isSortable } from "@dnd-kit/solid/sortable";
 import { unwrap } from "solid-js/store";
 import { createOnDragEnd } from "@/store/drag";
 
 function TabList() {
-	const { tabsByWindow, pendingMoves } = useTabsContext();
+	const { tabsByWindow } = useTabsContext();
 	const [overWindowId, setOverWindowId] = createSignal<number | null>(null);
 	const [search, setSearch] = createSignal("");
 
 	const onDragEnd = createOnDragEnd();
+
+	onMount(() => {
+		const handleKeyDown = (e: KeyboardEvent) => {
+			if ((e.ctrlKey || e.metaKey) && e.key === "k") {
+				e.preventDefault();
+				document.querySelector<HTMLInputElement>("input.search")?.focus();
+			}
+			if (e.key === "Escape") {
+				setSearch("");
+				document.querySelector<HTMLInputElement>("input.search")?.blur();
+			}
+		};
+		document.addEventListener("keydown", handleKeyDown);
+		onCleanup(() => document.removeEventListener("keydown", handleKeyDown));
+	});
 
 	return (
 		<>

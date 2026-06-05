@@ -1,5 +1,4 @@
 import { isSortable } from "@dnd-kit/dom/sortable";
-import { move } from "@dnd-kit/helpers";
 import type { DragDropEventHandlers } from "@dnd-kit/solid";
 import { useTabsContext } from "./tabs";
 
@@ -19,7 +18,6 @@ export function createOnDragEnd() {
 		if (!isSortable(target)) return;
 
 		const { initialIndex, index, initialGroup, group } = source;
-		const { index: tindex, group: tgroup } = target;
 
 		console.log(source);
 		console.log(target);
@@ -28,27 +26,6 @@ export function createOnDragEnd() {
 
 		const fromWindowId = initialGroup as number;
 		const toWindowId = group as number;
-
-		// console.log(
-		// 	"initialIndex:",
-		// 	initialIndex,
-		// 	"index:",
-		// 	index,
-		// 	"initialGroup:",
-		// 	initialGroup,
-		// 	"group:",
-		// 	group,
-		// );
-		// console.log(
-		// 	"initialIndex:",
-		// 	initialIndex,
-		// 	"index:",
-		// 	tindex,
-		// 	"initialGroup:",
-		// 	initialGroup,
-		// 	"group:",
-		// 	tgroup,
-		// );
 
 		if (fromWindowId === toWindowId) {
 			setTabsByWindow(fromWindowId, (ids) => {
