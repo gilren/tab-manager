@@ -57,7 +57,7 @@ export default function Window(props: WindowProps) {
 	};
 
 	return (
-		<Show when={myTabs().length > 0}>
+		<Show when={myTabs().length > 0 || props.search}>
 			<div
 				class="window-group"
 				classList={{ "window-drop-target": props.isDropTarget }}
