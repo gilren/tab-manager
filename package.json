@@ -13,7 +13,8 @@
 		"zip:firefox": "wxt zip -b firefox",
 		"compile": "tsc --noEmit",
 		"postinstall": "wxt prepare",
-		"lint": "biome lint ."
+		"lint": "biome lint .",
+    "lint-fix": "biome lint --write --unsafe ."
 	},
 	"dependencies": {
 		"@dnd-kit/helpers": "^0.3.2",
