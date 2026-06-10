@@ -1,7 +1,6 @@
 import type { Accessor, Setter } from "solid-js";
 import QuickFilter from "@/components/QuickFilter";
 import { useTabsContext } from "@/store/tabs";
-import { isTabDiscardable } from "@/utils/helper";
 
 interface HeaderProps {
 	search: Accessor<string>;
@@ -9,49 +8,15 @@ interface HeaderProps {
 }
 
 export default function Header({ search, setSearch }: HeaderProps) {
-	const { tabs } = useTabsContext();
+	const tabCollection = useTabsContext();
 
-	const normalizedSearch = createMemo(() => search().toLowerCase().trim());
-
-	const matchingTabs = createMemo(() => {
-		const needle = normalizedSearch();
-		const allTabs = Object.values(tabs);
-		if (!needle) return allTabs;
-
-		return allTabs.filter(
-			(t) =>
-				t.title?.toLowerCase().includes(needle) ||
-				t.url.toLowerCase().includes(needle),
-		);
-	});
-
-	const tabCount = () => matchingTabs().length;
-	const matchingIds = createMemo(() => {
-		if (!normalizedSearch()) return [];
-		return matchingTabs().map((t) => t.id);
-	});
-
-	const loadedIds = createMemo(() =>
-		Object.values(tabs)
-			.filter(isTabDiscardable)
-			.map((t) => t.id),
+	const tabCount = createMemo(() => tabCollection.tabCount(search()));
+	const matchingCount = createMemo(() =>
+		search().trim().length > 0 ? tabCollection.tabCount(search()) : 0,
 	);
-
-	const duplicatesIds = createMemo(() =>
-		Object.values(tabs)
-			.filter((t) => t.isDuplicate)
-			.map((t) => t.id),
-	);
-
-	const aiTabIds = createMemo(() =>
-		Object.values(tabs)
-			.filter((t) => t.isAI)
-			.map((t) => t.id),
-	);
-
-	const duplicateCount = () => duplicatesIds().length;
-	const loadedCount = () => loadedIds().length;
-	const aiCount = () => aiTabIds().length;
+	const duplicateCount = createMemo(() => tabCollection.duplicateCount());
+	const loadedCount = createMemo(() => tabCollection.loadedCount());
+	const aiCount = createMemo(() => tabCollection.aiCount());
 
 	const handleSearchInput = (
 		event: InputEvent & { currentTarget: HTMLInputElement },
@@ -72,22 +37,22 @@ export default function Header({ search, setSearch }: HeaderProps) {
 
 	const handleDiscardLoadedTabs = async (event: MouseEvent) => {
 		event.preventDefault();
-		await Promise.all(loadedIds().map((id) => browser.tabs.discard(id)));
+		await tabCollection.discardLoadedTabs();
 	};
 
 	const handleRemoveDuplicateTabs = async (event: MouseEvent) => {
 		event.preventDefault();
-		await browser.tabs.remove(duplicatesIds());
+		await tabCollection.removeDuplicateTabs();
 	};
 
 	const handleRemoveAiTabs = async (event: MouseEvent) => {
 		event.preventDefault();
-		await browser.tabs.remove(aiTabIds());
+		await tabCollection.removeAiTabs();
 	};
 
 	const handleRemoveMatchingTabs = async (event: MouseEvent) => {
 		event.preventDefault();
-		await browser.tabs.remove(matchingIds());
+		await tabCollection.removeMatchingTabs(search());
 		setSearch("");
 	};
 
@@ -236,11 +201,11 @@ export default function Header({ search, setSearch }: HeaderProps) {
 						<button
 							type="button"
 							class="btn btn-matching"
-							disabled={matchingIds().length === 0}
+							disabled={matchingCount() === 0}
 							title="Remove all matching tabs"
 							onClick={handleRemoveMatchingTabs}
 						>
-							[REMOVE ALL MATCHING ({matchingIds().length})]
+							[REMOVE ALL MATCHING ({matchingCount()})]
 						</button>
 					</Show>
 				</div>

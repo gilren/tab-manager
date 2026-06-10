@@ -1,22 +1,45 @@
 import type { ParentProps } from "solid-js";
-import { type SetStoreFunction, type Store, unwrap } from "solid-js/store";
 import type { Browser } from "wxt/browser";
 import type { OnActivatedInfoFirefox, Tab } from "@/types";
-import { isValidTab } from "@/utils/helper";
+import { isTabDiscardable, isValidTab } from "@/utils/helper";
 
-interface TabsStore {
-	tabs: Store<Record<number, Tab>>;
-	setTabs: SetStoreFunction<Record<number, Tab>>;
-
-	tabsByWindow: Store<Record<number, number[]>>;
-	setTabsByWindow: SetStoreFunction<Record<number, number[]>>;
-
-	pendingMoves: Set<number>;
+interface TabMovePreview {
+	tabId: number;
+	targetId: number;
+	fromWindowId: number;
+	toWindowId: number;
 }
 
-const TabsContext = createContext<TabsStore>();
+interface TabCollection {
+	windowIds: () => number[];
+	tabsForWindow: (windowId: number, search?: string) => Tab[];
+	tabCount: (search?: string) => number;
+	duplicateCount: () => number;
+	loadedCount: () => number;
+	aiCount: () => number;
+	duplicateCountForWindow: (windowId: number, search?: string) => number;
+	loadedCountForWindow: (windowId: number, search?: string) => number;
 
-export function useTabsContext(): TabsStore {
+	discardLoadedTabs: () => Promise<void>;
+	removeDuplicateTabs: () => Promise<void>;
+	removeAiTabs: () => Promise<void>;
+	removeMatchingTabs: (search: string) => Promise<void>;
+	removeWindowDuplicateTabs: (
+		windowId: number,
+		search?: string,
+	) => Promise<void>;
+	discardWindowLoadedTabs: (windowId: number, search?: string) => Promise<void>;
+	closeWindow: (windowId: number) => Promise<void>;
+	discardTab: (tabId: number) => Promise<void>;
+	focusTab: (tabId: number, windowId: number) => Promise<void>;
+	closeTab: (tabId: number) => Promise<void>;
+	previewTabMove: (move: TabMovePreview) => void;
+	commitTabMove: (tabId: number, windowId: number) => Promise<void>;
+}
+
+const TabsContext = createContext<TabCollection>();
+
+export function useTabsContext(): TabCollection {
 	const context = useContext(TabsContext);
 
 	if (context === undefined) {
@@ -45,6 +68,24 @@ function groupTabsByUrl(tabs: Tab[]): Map<string, number[]> {
 	return map;
 }
 
+function normalizeSearch(search = ""): string {
+	return search.toLowerCase().trim();
+}
+
+function matchesSearch(tab: Tab, search = ""): boolean {
+	const needle = normalizeSearch(search);
+	if (!needle) return true;
+
+	return (
+		tab.title?.toLowerCase().includes(needle) ||
+		tab.url.toLowerCase().includes(needle)
+	);
+}
+
+function tabIds(tabs: Tab[]): number[] {
+	return tabs.map((tab) => tab.id);
+}
+
 export function TabsProvider(props: ParentProps) {
 	const [tabs, setTabs] = createStore<Record<number, Tab>>({});
 	const [tabsByWindow, setTabsByWindow] = createStore<Record<number, number[]>>(
@@ -53,18 +94,128 @@ export function TabsProvider(props: ParentProps) {
 
 	const [data] = createResource(async () => browser.tabs.query({}));
 
-	const [windowOrder, setWindowOrder] = createStore<number[]>([]);
 	const pendingMoves = new Set<number>();
 
+	const allTabs = () => Object.values(tabs);
+	const tabsForWindow = (windowId: number, search = "") =>
+		(tabsByWindow[windowId] ?? [])
+			.map((id) => tabs[id])
+			.filter(Boolean)
+			.filter((tab) => matchesSearch(tab, search));
+	const matchingTabs = (search = "") =>
+		allTabs().filter((tab) => matchesSearch(tab, search));
+	const duplicateTabs = (source = allTabs()) =>
+		source.filter((tab) => tab.isDuplicate);
+	const loadedTabs = (source = allTabs()) => source.filter(isTabDiscardable);
+	const aiTabs = (source = allTabs()) => source.filter((tab) => tab.isAI);
+
 	const removeWindow = (windowId: number) => {
-		batch(() => {
-			setTabsByWindow(
-				produce((state) => {
-					delete state[windowId];
-				}),
+		setTabsByWindow(
+			produce((state) => {
+				delete state[windowId];
+			}),
+		);
+	};
+
+	const tabCollection: TabCollection = {
+		windowIds: () => Object.keys(tabsByWindow).map(Number),
+		tabsForWindow,
+		tabCount: (search = "") => matchingTabs(search).length,
+		duplicateCount: () => duplicateTabs().length,
+		loadedCount: () => loadedTabs().length,
+		aiCount: () => aiTabs().length,
+		duplicateCountForWindow: (windowId, search = "") =>
+			duplicateTabs(tabsForWindow(windowId, search)).length,
+		loadedCountForWindow: (windowId, search = "") =>
+			loadedTabs(tabsForWindow(windowId, search)).length,
+
+		discardLoadedTabs: async () => {
+			await Promise.all(
+				tabIds(loadedTabs()).map((id) => browser.tabs.discard(id)),
 			);
-			setWindowOrder((ids) => ids.filter((id) => id !== windowId));
-		});
+		},
+		removeDuplicateTabs: async () => {
+			await browser.tabs.remove(tabIds(duplicateTabs()));
+		},
+		removeAiTabs: async () => {
+			await browser.tabs.remove(tabIds(aiTabs()));
+		},
+		removeMatchingTabs: async (search: string) => {
+			if (!normalizeSearch(search)) return;
+			await browser.tabs.remove(tabIds(matchingTabs(search)));
+		},
+		removeWindowDuplicateTabs: async (windowId, search = "") => {
+			await browser.tabs.remove(
+				tabIds(duplicateTabs(tabsForWindow(windowId, search))),
+			);
+		},
+		discardWindowLoadedTabs: async (windowId, search = "") => {
+			await Promise.all(
+				tabIds(loadedTabs(tabsForWindow(windowId, search))).map((id) =>
+					browser.tabs.discard(id),
+				),
+			);
+		},
+		closeWindow: async (windowId: number) => {
+			await browser.windows.remove(windowId);
+		},
+		discardTab: async (tabId: number) => {
+			await browser.tabs.discard(tabId);
+		},
+		focusTab: async (tabId: number, windowId: number) => {
+			await browser.tabs.update(tabId, { active: true });
+			await browser.windows.update(windowId, { focused: true });
+		},
+		closeTab: async (tabId: number) => {
+			await browser.tabs.remove(tabId);
+		},
+		previewTabMove: ({ tabId, targetId, fromWindowId, toWindowId }) => {
+			if (fromWindowId === toWindowId) {
+				setTabsByWindow(fromWindowId, (ids) => {
+					const fromIndex = ids.indexOf(tabId);
+					const toIndex = ids.indexOf(targetId);
+
+					if (fromIndex === -1 || toIndex === -1 || fromIndex === toIndex) {
+						return ids;
+					}
+
+					const next = [...ids];
+					const [removed] = next.splice(fromIndex, 1);
+					next.splice(toIndex, 0, removed);
+
+					return next;
+				});
+				return;
+			}
+
+			const fromTabs = [...(tabsByWindow[fromWindowId] ?? [])];
+			const toTabs = [...(tabsByWindow[toWindowId] ?? [])];
+			const fromIndex = fromTabs.indexOf(tabId);
+			const toIndex = toTabs.indexOf(targetId);
+
+			if (fromIndex === -1 || toIndex === -1) return;
+
+			fromTabs.splice(fromIndex, 1);
+			toTabs.splice(toIndex, 0, tabId);
+
+			batch(() => {
+				setTabsByWindow(fromWindowId, fromTabs);
+				setTabsByWindow(toWindowId, toTabs);
+				setTabs(tabId, "windowId", toWindowId);
+			});
+		},
+		commitTabMove: async (tabId: number, windowId: number) => {
+			const index = tabsByWindow[windowId]?.indexOf(tabId);
+
+			if (windowId == null || index == null || index === -1) return;
+
+			pendingMoves.add(tabId);
+			try {
+				await browser.tabs.move(tabId, { windowId, index });
+			} finally {
+				pendingMoves.delete(tabId);
+			}
+		},
 	};
 
 	createEffect(() => {
@@ -87,17 +238,17 @@ export function TabsProvider(props: ParentProps) {
 			if (ids && ids.length > 1) {
 				const oldestId = Math.min(...ids);
 				tab.isDuplicate = tab.id !== oldestId;
+			} else {
+				tab.isDuplicate = false;
 			}
 			tab.isAI = isAiTab(tab.url);
 		}
 
 		const byWindow: Record<number, number[]> = {};
-		allTabs.forEach((tab) => {
-			if (tab.windowId != null && tab.id != null) {
-				if (!byWindow[tab.windowId]) byWindow[tab.windowId] = [];
-				byWindow[tab.windowId].push(tab.id);
-			}
-		});
+		for (const tab of valid) {
+			if (!byWindow[tab.windowId]) byWindow[tab.windowId] = [];
+			byWindow[tab.windowId].push(tab.id);
+		}
 
 		batch(() => {
 			setTabs(tabsWithFlags);
@@ -108,12 +259,9 @@ export function TabsProvider(props: ParentProps) {
 	onMount(() => {
 		const onCreated = (tab: Browser.tabs.Tab) => {
 			if (!isValidTab(tab)) return;
-			if (!unwrap(windowOrder).includes(tab.windowId)) {
-				setWindowOrder((ids) => [...ids, tab.windowId]);
-			}
 			if (pendingMoves.has(tab.id)) return;
 
-			const existing = Object.values(unwrap(tabs)).find(
+			const existing = allTabs().find(
 				(existingTab) => existingTab.url === tab.url,
 			);
 
@@ -129,15 +277,14 @@ export function TabsProvider(props: ParentProps) {
 		const onRemoved = (tabId: number) => {
 			batch(() => {
 				const removedTab = tabs[tabId];
+				if (!removedTab) return;
 				const windowId = removedTab.windowId;
 
 				const nextTabsByWindow = (tabsByWindow[windowId] ?? []).filter(
 					(id) => id !== tabId,
 				);
 
-				const remainingTabs = Object.values(tabs).filter(
-					(t) => t.id !== tabId && t.windowId === windowId,
-				);
+				const remainingTabs = Object.values(tabs).filter((t) => t.id !== tabId);
 
 				const sameUrlTabs = remainingTabs.filter(
 					(t) => t.url === removedTab.url,
@@ -233,26 +380,13 @@ export function TabsProvider(props: ParentProps) {
 
 		const onDetached = (tabId: number, info: Browser.tabs.OnDetachedInfo) => {
 			if (pendingMoves.has(tabId)) return;
-			const { oldWindowId, oldPosition } = info;
+			const { oldWindowId } = info;
 
 			const nextTabsByWindow = (tabsByWindow[oldWindowId] ?? []).filter(
 				(id) => id !== tabId,
 			);
 
-			batch(() => {
-				setTabs(
-					produce((tabs) => {
-						for (const id in tabs) {
-							const tab = tabs[id];
-							if (tab.windowId !== oldWindowId) continue;
-							if (Number(id) === tabId) continue;
-							// TODO: We might not need to do that anymore
-							if (tab.index > oldPosition) tab.index--;
-						}
-					}),
-				);
-				setTabsByWindow(oldWindowId, nextTabsByWindow);
-			});
+			setTabsByWindow(oldWindowId, nextTabsByWindow);
 
 			// Remove the window if this tab was alone
 			if (nextTabsByWindow.length === 0) {
@@ -265,23 +399,13 @@ export function TabsProvider(props: ParentProps) {
 
 			const { newWindowId, newPosition } = info;
 
-			setTabs(
-				produce((tabs) => {
-					for (const id in tabs) {
-						const tab = tabs[id];
-						if (tab.windowId !== newWindowId) continue;
-						if (Number(id) === tabId) continue;
-						if (tab.index >= newPosition) tab.index++;
-					}
-
-					tabs[tabId].index = newPosition;
-					tabs[tabId].windowId = newWindowId;
-				}),
-			);
-			setTabsByWindow(newWindowId, (arr) => {
-				const copy = [...(arr || [])];
-				copy.splice(newPosition, 0, tabId);
-				return copy;
+			batch(() => {
+				setTabs(tabId, "windowId", newWindowId);
+				setTabsByWindow(newWindowId, (arr) => {
+					const copy = [...(arr || [])];
+					copy.splice(newPosition, 0, tabId);
+					return copy;
+				});
 			});
 		};
 
@@ -311,16 +435,7 @@ export function TabsProvider(props: ParentProps) {
 	});
 
 	return (
-		<TabsContext.Provider
-			value={{
-				tabs,
-				setTabs,
-				pendingMoves,
-
-				tabsByWindow,
-				setTabsByWindow,
-			}}
-		>
+		<TabsContext.Provider value={tabCollection}>
 			{props.children}
 		</TabsContext.Provider>
 	);

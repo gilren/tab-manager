@@ -1,6 +1,7 @@
 import { useSortable } from "@dnd-kit/solid/sortable";
 import type { Tab } from "@/types";
 
+import { useTabsContext } from "@/store/tabs";
 import { isTabDiscardable } from "@/utils/helper";
 
 interface TabItemProps {
@@ -10,6 +11,7 @@ interface TabItemProps {
 }
 
 export default function TabItem(props: TabItemProps) {
+	const tabCollection = useTabsContext();
 	const { ref, isDragging } = useSortable({
 		plugins: [],
 		get id() {
@@ -25,7 +27,7 @@ export default function TabItem(props: TabItemProps) {
 
 	const handleLoaded = async (event: MouseEvent, id: number) => {
 		event.stopPropagation();
-		await browser.tabs.discard(id);
+		await tabCollection.discardTab(id);
 	};
 
 	const handleOpen = async (
@@ -34,14 +36,12 @@ export default function TabItem(props: TabItemProps) {
 		windowId: number,
 	) => {
 		event.stopPropagation();
-
-		await browser.tabs.update(id, { active: true });
-		await browser.windows.update(windowId, { focused: true });
+		await tabCollection.focusTab(id, windowId);
 	};
 
 	const handleClose = async (event: MouseEvent, id: number) => {
 		event.stopPropagation();
-		await browser.tabs.remove(id);
+		await tabCollection.closeTab(id);
 	};
 
 	const faviconUrl = () => {

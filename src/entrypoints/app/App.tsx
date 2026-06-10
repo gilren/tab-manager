@@ -4,7 +4,6 @@ import { TabsProvider, useTabsContext } from "@/store/tabs";
 import "solid-devtools";
 import { type DragDropEventHandlers, DragDropProvider } from "@dnd-kit/solid";
 import { isSortable } from "@dnd-kit/solid/sortable";
-import { unwrap } from "solid-js/store";
 
 type DragOverEvent = Parameters<
 	NonNullable<DragDropEventHandlers["onDragOver"]>
@@ -15,8 +14,7 @@ type DragEndEvent = Parameters<
 >[0];
 
 function TabList() {
-	const { tabsByWindow, pendingMoves, setTabsByWindow, setTabs } =
-		useTabsContext();
+	const tabCollection = useTabsContext();
 	const [overWindowId, setOverWindowId] = createSignal<number | null>(null);
 	const [search, setSearch] = createSignal("");
 
@@ -51,39 +49,12 @@ function TabList() {
 		const toWindowId = target.group as number;
 
 		setOverWindowId(toWindowId);
-
-		if (fromWindowId === toWindowId) {
-			setTabsByWindow(fromWindowId, (ids) => {
-				const fromIndex = ids.indexOf(tabId);
-				const toIndex = ids.indexOf(targetId);
-
-				if (fromIndex === -1 || toIndex === -1 || fromIndex === toIndex) {
-					return ids;
-				}
-
-				const next = [...ids];
-				const [removed] = next.splice(fromIndex, 1);
-				next.splice(toIndex, 0, removed);
-
-				return next;
-			});
-		} else {
-			const fromTabs = [...(tabsByWindow[fromWindowId] ?? [])];
-			const toTabs = [...(tabsByWindow[toWindowId] ?? [])];
-			const fromIndex = fromTabs.indexOf(tabId);
-			const toIndex = toTabs.indexOf(targetId);
-
-			if (fromIndex === -1 || toIndex === -1) return;
-
-			fromTabs.splice(fromIndex, 1);
-			toTabs.splice(toIndex, 0, tabId);
-
-			batch(() => {
-				setTabsByWindow(fromWindowId, fromTabs);
-				setTabsByWindow(toWindowId, toTabs);
-				setTabs(tabId, "windowId", toWindowId);
-			});
-		}
+		tabCollection.previewTabMove({
+			tabId,
+			targetId,
+			fromWindowId,
+			toWindowId,
+		});
 	};
 
 	const handleDragEnd = async (event: DragEndEvent) => {
@@ -95,16 +66,8 @@ function TabList() {
 
 		const tabId = source.id as number;
 		const windowId = source.group as number;
-		const index = tabsByWindow[windowId]?.indexOf(tabId);
 
-		if (windowId == null || index == null || index === -1) return;
-
-		pendingMoves.add(tabId);
-		try {
-			await browser.tabs.move(tabId, { windowId, index });
-		} finally {
-			pendingMoves.delete(tabId);
-		}
+		await tabCollection.commitTabMove(tabId, windowId);
 	};
 
 	return (
@@ -116,12 +79,12 @@ function TabList() {
 						onDragOver={handleDragOver}
 						onDragEnd={handleDragEnd}
 					>
-						<For each={unwrap(Object.keys(tabsByWindow))}>
+						<For each={tabCollection.windowIds()}>
 							{(windowId) => (
 								<Window
-									id={Number(windowId)}
+									id={windowId}
 									search={search}
-									isDropTarget={overWindowId() === Number(windowId)}
+									isDropTarget={overWindowId() === windowId}
 								/>
 							)}
 						</For>

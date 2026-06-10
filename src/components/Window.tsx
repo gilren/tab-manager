@@ -8,55 +8,35 @@ interface WindowProps {
 }
 
 export default function Window(props: WindowProps) {
-	const { tabs, tabsByWindow } = useTabsContext();
+	const tabCollection = useTabsContext();
 
-	const myTabs = createMemo(() => {
-		const needle = props.search().toLowerCase().trim();
-		const windowTabs = tabsByWindow[props.id];
-		const mTabs = windowTabs.map((id) => tabs[id]).filter(Boolean);
-		// console.log("WINDOW RERENDER", props.id);
-		// console.log(windowTabs);
-		return mTabs.filter(
-			(tab) =>
-				!needle ||
-				tab.title?.toLowerCase().includes(needle) ||
-				tab.url.includes(needle),
-		);
-	});
-
-	// createEffect(() => {
-	// 	console.log(myTabs());
-	// });
-	// createEffect(() => {
-	// 	const currentOrder = tabsByWindow[props.id];
-	// 	console.log(`Window ${props.id} updated, length:`, currentOrder?.length);
-	// 	console.log("Full Order:", unwrap(currentOrder));
-	// });
-	const loadedTabs = createMemo(() => myTabs().filter((tab) => !tab.discarded));
-
-	const duplicatesIds = createMemo(() =>
-		myTabs()
-			.filter((t) => t.isDuplicate)
-			.map((t) => t.id),
+	const tabs = createMemo(() =>
+		tabCollection.tabsForWindow(props.id, props.search()),
+	);
+	const loadedCount = createMemo(() =>
+		tabCollection.loadedCountForWindow(props.id, props.search()),
+	);
+	const duplicateCount = createMemo(() =>
+		tabCollection.duplicateCountForWindow(props.id, props.search()),
 	);
 
 	const handleDuplicated = async (event: MouseEvent) => {
 		event.stopPropagation();
-		await browser.tabs.remove(duplicatesIds());
+		await tabCollection.removeWindowDuplicateTabs(props.id, props.search());
 	};
 
 	const handleLoaded = async (event: MouseEvent) => {
 		event.stopPropagation();
-		await Promise.all(loadedTabs().map((tab) => browser.tabs.discard(tab.id)));
+		await tabCollection.discardWindowLoadedTabs(props.id, props.search());
 	};
 
-	const handleClose = async (event: MouseEvent, id: number) => {
+	const handleClose = async (event: MouseEvent) => {
 		event.stopPropagation();
-		await browser.windows.remove(id);
+		await tabCollection.closeWindow(props.id);
 	};
 
 	return (
-		<Show when={myTabs().length > 0 || props.search}>
+		<Show when={tabs().length > 0 || props.search().trim().length > 0}>
 			<div
 				class="window-group"
 				classList={{ "window-drop-target": props.isDropTarget }}
@@ -64,10 +44,10 @@ export default function Window(props: WindowProps) {
 				<div class="window-header">
 					<div>
 						Window {props.id}{" "}
-						<span class="window-count">[{myTabs().length}]</span>
+						<span class="window-count">[{tabs().length}]</span>
 					</div>
 					<div class="window__actions">
-						<Show when={duplicatesIds().length > 0}>
+						<Show when={duplicateCount() > 0}>
 							<button
 								type="button"
 								class="tab__btn tab__btn--duplicated"
@@ -90,7 +70,7 @@ export default function Window(props: WindowProps) {
 								</svg>
 							</button>
 						</Show>
-						<Show when={loadedTabs().length > 1}>
+						<Show when={loadedCount() > 1}>
 							<button
 								type="button"
 								class="tab__btn tab__btn--loaded"
@@ -116,7 +96,7 @@ export default function Window(props: WindowProps) {
 							<button
 								type="button"
 								class="tab__btn tab__btn--close"
-								onclick={(event) => handleClose(event, props.id)}
+								onclick={(event) => handleClose(event)}
 							>
 								<svg
 									xmlns="http://www.w3.org/2000/svg"
@@ -140,29 +120,12 @@ export default function Window(props: WindowProps) {
 				</div>
 
 				<ul class="tabs">
-					<For each={myTabs()}>
+					<For each={tabs()}>
 						{(tab, index) => (
 							<TabItem tab={tab} index={index()} windowId={props.id} />
 						)}
 					</For>
 				</ul>
-
-				{/* <ul class="tabs">
-				<For each={tabsByWindow[props.id]}>
-					{(tabId) => {
-						// Access the tab object directly inside the loop
-						// This ensures 'tab' is a stable proxy from the store
-						const tab = tabs[tabId];
-						return (
-							<TabItem
-								tab={tab}
-								windowId={props.id}
-								isActive={tabId === activeTabId()}
-							/>
-						);
-					}}
-				</For>
-			</ul> */}
 			</div>
 		</Show>
 	);
