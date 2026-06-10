@@ -10,8 +10,9 @@ export type Tab = Browser.tabs.Tab & {
 	isAI: boolean;
 };
 
-/** Firefox provides previousTabId on onActivated; force it required here since
- *  this extension only supports firefox. */
+/** Firefox provides previousTabId on onActivated, but the shared WebExtension
+ *  typings don't guarantee it. Keep it optional so handlers remain assignable to
+ *  the cross-browser listener signature. */
 export type OnActivatedInfoFirefox = Browser.tabs.OnActivatedInfo & {
-	previousTabId: number;
+	previousTabId?: number;
 };

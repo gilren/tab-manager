@@ -221,7 +221,7 @@ export function TabsProvider(props: ParentProps) {
 		const onActivated = ({ tabId, previousTabId }: OnActivatedInfoFirefox) => {
 			batch(() => {
 				setTabs(tabId, "active", true);
-				if (previousTabId) {
+				if (previousTabId != null) {
 					setTabs(previousTabId, "active", false);
 				}
 			});
