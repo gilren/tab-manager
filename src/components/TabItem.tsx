@@ -1,6 +1,8 @@
 import { useSortable } from "@dnd-kit/solid/sortable";
 import type { Tab } from "@/types";
 
+import { isTabDiscardable } from "@/utils/helper";
+
 interface TabItemProps {
 	tab: Tab;
 	index: number;
@@ -99,7 +101,7 @@ export default function TabItem(props: TabItemProps) {
 				</Show>
 			</div>
 			<div class="tab__actions">
-				<Show when={!props.tab.discarded && !props.tab.active}>
+				<Show when={isTabDiscardable(props.tab)}>
 					<button
 						type="button"
 						class="tab__btn tab__btn--loaded"

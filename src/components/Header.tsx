@@ -1,6 +1,7 @@
 import type { Accessor, Setter } from "solid-js";
 import QuickFilter from "@/components/QuickFilter";
 import { useTabsContext } from "@/store/tabs";
+import { isTabDiscardable } from "@/utils/helper";
 
 interface HeaderProps {
 	search: Accessor<string>;
@@ -32,7 +33,7 @@ export default function Header({ search, setSearch }: HeaderProps) {
 
 	const loadedIds = createMemo(() =>
 		Object.values(tabs)
-			.filter((t) => !t.discarded && !t.active)
+			.filter(isTabDiscardable)
 			.map((t) => t.id),
 	);
 
