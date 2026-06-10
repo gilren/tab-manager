@@ -8,30 +8,31 @@ interface HeaderProps {
 }
 
 export default function Header({ search, setSearch }: HeaderProps) {
-	const { tabs, tabsByWindow } = useTabsContext();
+	const { tabs } = useTabsContext();
 
-	const tabCount = createMemo(() => {
-		const needle = search().toLowerCase().trim();
-		if (!needle) return Object.keys(tabs).length;
-		return Object.values(tabs).filter(
-			(t) => t.title?.toLowerCase().includes(needle) || t.url.includes(needle),
-		).length;
+	const normalizedSearch = createMemo(() => search().toLowerCase().trim());
+
+	const matchingTabs = createMemo(() => {
+		const needle = normalizedSearch();
+		const allTabs = Object.values(tabs);
+		if (!needle) return allTabs;
+
+		return allTabs.filter(
+			(t) =>
+				t.title?.toLowerCase().includes(needle) ||
+				t.url.toLowerCase().includes(needle),
+		);
 	});
 
+	const tabCount = () => matchingTabs().length;
 	const matchingIds = createMemo(() => {
-		const needle = search().toLowerCase().trim();
-		if (!needle) return [];
-		return Object.values(tabs)
-			.filter(
-				(t) =>
-					t.title?.toLowerCase().includes(needle) || t.url.includes(needle),
-			)
-			.map((t) => t.id);
+		if (!normalizedSearch()) return [];
+		return matchingTabs().map((t) => t.id);
 	});
 
 	const loadedIds = createMemo(() =>
 		Object.values(tabs)
-			.filter((t) => !t.discarded)
+			.filter((t) => !t.discarded && !t.active)
 			.map((t) => t.id),
 	);
 
@@ -47,47 +48,43 @@ export default function Header({ search, setSearch }: HeaderProps) {
 			.map((t) => t.id),
 	);
 
-	const windowCount = () => Object.values(tabsByWindow).length;
 	const duplicateCount = () => duplicatesIds().length;
-	const loadedCount = () => loadedIds().length - windowCount();
+	const loadedCount = () => loadedIds().length;
 	const aiCount = () => aiTabIds().length;
 
-	const handleSearch = (
+	const handleSearchInput = (
 		event: InputEvent & { currentTarget: HTMLInputElement },
 	) => {
 		setSearch(event.currentTarget.value);
 	};
 
-	const handleKeyDown = (event: KeyboardEvent) => {
+	const handleSearchKeyDown = (event: KeyboardEvent) => {
 		if (event.key === "Escape") {
 			setSearch("");
 		}
 	};
 
-	const handleClick = (event: MouseEvent) => {
+	const handleClearSearch = (event: MouseEvent) => {
 		event.preventDefault();
 		setSearch("");
 	};
 
-	const handleLoadedUnload = async (event: MouseEvent) => {
+	const handleDiscardLoadedTabs = async (event: MouseEvent) => {
 		event.preventDefault();
-		const discardedTabs = Promise.all(
-			loadedIds().map((id) => browser.tabs.discard(id)),
-		);
-		await discardedTabs;
+		await Promise.all(loadedIds().map((id) => browser.tabs.discard(id)));
 	};
 
-	const handleDuplicatesClose = async (event: MouseEvent) => {
+	const handleRemoveDuplicateTabs = async (event: MouseEvent) => {
 		event.preventDefault();
 		await browser.tabs.remove(duplicatesIds());
 	};
 
-	const handleAiClose = async (event: MouseEvent) => {
+	const handleRemoveAiTabs = async (event: MouseEvent) => {
 		event.preventDefault();
 		await browser.tabs.remove(aiTabIds());
 	};
 
-	const handleRemoveMatching = async (event: MouseEvent) => {
+	const handleRemoveMatchingTabs = async (event: MouseEvent) => {
 		event.preventDefault();
 		await browser.tabs.remove(matchingIds());
 		setSearch("");
@@ -102,15 +99,15 @@ export default function Header({ search, setSearch }: HeaderProps) {
 					id="search"
 					placeholder="Search tabs..."
 					autofocus
-					onKeyDown={handleKeyDown}
-					onInput={handleSearch}
+					onKeyDown={handleSearchKeyDown}
+					onInput={handleSearchInput}
 					value={search()}
 				/>
 				<button
 					type="button"
 					class="clear-btn"
 					id="clear-btn"
-					onClick={handleClick}
+					onClick={handleClearSearch}
 				>
 					<svg
 						xmlns="http://www.w3.org/2000/svg"
@@ -209,7 +206,7 @@ export default function Header({ search, setSearch }: HeaderProps) {
 							class="btn btn-loaded"
 							disabled={loadedCount() === 0}
 							title="Remove loaded tabs"
-							onClick={handleLoadedUnload}
+							onClick={handleDiscardLoadedTabs}
 						>
 							[REMOVE LOADED
 							{loadedCount() > 0 && ` (${loadedCount()})`}]
@@ -219,7 +216,7 @@ export default function Header({ search, setSearch }: HeaderProps) {
 							class="btn btn-duplicated"
 							disabled={duplicateCount() === 0}
 							title="Remove duplicate tabs"
-							onClick={handleDuplicatesClose}
+							onClick={handleRemoveDuplicateTabs}
 						>
 							[REMOVE DUPLICATES
 							{duplicateCount() > 0 && ` (${duplicateCount()})`}]
@@ -229,7 +226,7 @@ export default function Header({ search, setSearch }: HeaderProps) {
 							class="btn btn-ai"
 							disabled={aiCount() === 0}
 							title="Remove AI tabs"
-							onClick={handleAiClose}
+							onClick={handleRemoveAiTabs}
 						>
 							[REMOVE AI{aiCount() > 0 && ` (${aiCount()})`}]
 						</button>
@@ -240,7 +237,7 @@ export default function Header({ search, setSearch }: HeaderProps) {
 							class="btn btn-matching"
 							disabled={matchingIds().length === 0}
 							title="Remove all matching tabs"
-							onClick={handleRemoveMatching}
+							onClick={handleRemoveMatchingTabs}
 						>
 							[REMOVE ALL MATCHING ({matchingIds().length})]
 						</button>
