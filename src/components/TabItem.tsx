@@ -11,6 +11,7 @@ interface TabItemProps {
 
 export default function TabItem(props: TabItemProps) {
 	const { ref, isDragging } = useSortable({
+		plugins: [],
 		get id() {
 			return props.tab.id;
 		},
