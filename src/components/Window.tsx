@@ -14,9 +14,8 @@ export default function Window(props: WindowProps) {
 		const needle = props.search().toLowerCase().trim();
 		const windowTabs = tabsByWindow[props.id];
 		const mTabs = windowTabs.map((id) => tabs[id]).filter(Boolean);
-		console.log("WINDOW RERENDER", props.id);
+		// console.log("WINDOW RERENDER", props.id);
 		// console.log(windowTabs);
-		// console.log(mTabs);
 		return mTabs.filter(
 			(tab) =>
 				!needle ||

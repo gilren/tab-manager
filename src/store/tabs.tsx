@@ -91,7 +91,6 @@ export function TabsProvider(props: ParentProps) {
 			tab.isAI = isAiTab(tab.url);
 		}
 
-		// Build window record
 		const byWindow: Record<number, number[]> = {};
 		allTabs.forEach((tab) => {
 			if (tab.windowId != null && tab.id != null) {
@@ -99,8 +98,6 @@ export function TabsProvider(props: ParentProps) {
 				byWindow[tab.windowId].push(tab.id);
 			}
 		});
-
-		console.log("Running effect from tabs");
 
 		batch(() => {
 			setTabs(tabsWithFlags);
@@ -116,7 +113,6 @@ export function TabsProvider(props: ParentProps) {
 			}
 			if (pendingMoves.has(tab.id)) return;
 
-			console.log("=== onCreated ===");
 			const existing = Object.values(unwrap(tabs)).find(
 				(existingTab) => existingTab.url === tab.url,
 			);
@@ -186,8 +182,6 @@ export function TabsProvider(props: ParentProps) {
 			const relevant = ["url", "discarded"];
 			if (!Object.keys(info).some((k) => relevant.includes(k))) return;
 
-			console.log("=== onUpdated ===");
-
 			setTabs(
 				produce((s) => {
 					if (!s[tab.id]) return;
@@ -212,8 +206,6 @@ export function TabsProvider(props: ParentProps) {
 							}
 						}
 					}
-
-					console.log("actually batched in onUpdated");
 				}),
 			);
 		};
@@ -230,8 +222,6 @@ export function TabsProvider(props: ParentProps) {
 		const onMoved = (tabId: number, info: Browser.tabs.OnMovedInfo) => {
 			if (pendingMoves.has(tabId)) return;
 
-			console.log("=== onMoved ===");
-
 			const { windowId, fromIndex, toIndex } = info;
 
 			const groupTabs = [...tabsByWindow[windowId]];
@@ -245,8 +235,6 @@ export function TabsProvider(props: ParentProps) {
 			if (pendingMoves.has(tabId)) return;
 			const { oldWindowId, oldPosition } = info;
 
-			console.log("=== onDetached ===");
-
 			const nextTabsByWindow = (tabsByWindow[oldWindowId] ?? []).filter(
 				(id) => id !== tabId,
 			);
@@ -257,7 +245,6 @@ export function TabsProvider(props: ParentProps) {
 						for (const id in tabs) {
 							const tab = tabs[id];
 							if (tab.windowId !== oldWindowId) continue;
-							console.log(id);
 							if (Number(id) === tabId) continue;
 							// TODO: We might not need to do that anymore
 							if (tab.index > oldPosition) tab.index--;
@@ -265,10 +252,10 @@ export function TabsProvider(props: ParentProps) {
 					}),
 				);
 				setTabsByWindow(oldWindowId, nextTabsByWindow);
-				// Remove the window if this tab was alone
 			});
+
+			// Remove the window if this tab was alone
 			if (nextTabsByWindow.length === 0) {
-				console.log("je passe");
 				removeWindow(oldWindowId);
 			}
 		};
@@ -277,8 +264,6 @@ export function TabsProvider(props: ParentProps) {
 			if (pendingMoves.has(tabId)) return;
 
 			const { newWindowId, newPosition } = info;
-
-			console.log("=== onAttached ===");
 
 			setTabs(
 				produce((tabs) => {

@@ -74,10 +74,6 @@ export default function TabItem(props: TabItemProps) {
 				alt={`Favicon - ${props.tab.title}`}
 			/>
 			<div class="tab-main">
-				<div class="tab-debug">
-					{props.tab.id} - {props.index}
-				</div>
-
 				<h2 class="tab-title">{props.tab.title}</h2>
 				<span class="tab-url">{props.tab.url}</span>
 			</div>
