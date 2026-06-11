@@ -1,9 +1,8 @@
+import { type DragDropEventHandlers, DragDropProvider } from "@dnd-kit/solid";
+import { isSortable } from "@dnd-kit/solid/sortable";
 import Header from "@/components/Header";
 import Window from "@/components/Window";
 import { TabsProvider, useTabsContext } from "@/store/tabs";
-import "solid-devtools";
-import { type DragDropEventHandlers, DragDropProvider } from "@dnd-kit/solid";
-import { isSortable } from "@dnd-kit/solid/sortable";
 
 type DragOverEvent = Parameters<
 	NonNullable<DragDropEventHandlers["onDragOver"]>

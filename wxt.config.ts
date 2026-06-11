@@ -1,21 +1,10 @@
-import devtools from "solid-devtools/vite";
 import solid from "vite-plugin-solid";
 
 import { defineConfig } from "wxt";
 
 export default defineConfig({
 	vite: () => ({
-		plugins: [
-			devtools({
-				autoname: true,
-				locator: {
-					targetIDE: "vscode",
-					componentLocation: true,
-					jsxLocation: true,
-				},
-			}),
-			solid(),
-		],
+		plugins: [solid()],
 	}),
 	srcDir: "src",
 	browser: "firefox",
@@ -27,8 +16,12 @@ export default defineConfig({
 			gecko: {
 				id: "tab-manager@gilren",
 				strict_min_version: "109.0",
+				data_collection_permissions: {
+					required: ["none"],
+				},
 			},
 		},
+
 		permissions: ["tabs"],
 		web_accessible_resources: [
 			{

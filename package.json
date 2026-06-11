@@ -2,7 +2,7 @@
 	"name": "Tab Manager",
 	"description": "Firefox extension to manage, search, and clean up browser tabs.",
 	"private": true,
-	"version": "0.0.0",
+	"version": "1.0.0",
 	"type": "module",
 	"scripts": {
 		"dev": "wxt",
@@ -14,20 +14,20 @@
 		"compile": "tsc --noEmit",
 		"postinstall": "wxt prepare",
 		"lint": "biome lint .",
-    "lint-fix": "biome lint --write --unsafe ."
+		"lint-fix": "biome lint --write --unsafe ."
 	},
 	"dependencies": {
 		"@dnd-kit/helpers": "^0.3.2",
 		"@dnd-kit/solid": "^0.3.2",
-		"solid-js": "^1.9.11"
+		"solid-js": "^1.9.13"
 	},
 	"devDependencies": {
-		"@biomejs/biome": "^2.4.11",
+		"@biomejs/biome": "^2.4.16",
 		"@solid-devtools/debugger": "^0.28.1",
 		"@wxt-dev/auto-icons": "^1.1.1",
 		"@wxt-dev/module-solid": "^1.1.4",
 		"solid-devtools": "^0.34.5",
 		"typescript": "^5.9.3",
-		"wxt": "^0.20.20"
+		"wxt": "^0.20.26"
 	}
 }
