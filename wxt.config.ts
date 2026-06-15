@@ -9,16 +9,18 @@ export default defineConfig({
 	srcDir: "src",
 	browser: "firefox",
 	modules: ["@wxt-dev/auto-icons", "@wxt-dev/module-solid"],
-	// autoIcons: { developmentIndicator: false },
 	manifest: {
 		browser_action: {},
 		browser_specific_settings: {
 			gecko: {
 				id: "tab-manager@gilren",
-				strict_min_version: "109.0",
+				strict_min_version: "140.0",
 				data_collection_permissions: {
 					required: ["none"],
 				},
+			},
+			gecko_android: {
+				strict_min_version: "142.0",
 			},
 		},
 

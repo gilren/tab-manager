@@ -2,7 +2,7 @@
 	"name": "Tab Manager",
 	"description": "Firefox extension to manage, search, and clean up browser tabs.",
 	"private": true,
-	"version": "1.0.0",
+	"version": "1.0.1",
 	"type": "module",
 	"scripts": {
 		"dev": "wxt",
