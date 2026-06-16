@@ -24,7 +24,7 @@ export default defineConfig({
 			},
 		},
 
-		permissions: ["tabs"],
+		permissions: ["tabs", "nativeMessaging"],
 		web_accessible_resources: [
 			{
 				resources: ["icons/*.svg", "icons/*.png"],

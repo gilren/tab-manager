@@ -87,6 +87,7 @@ function tabIds(tabs: Tab[]): number[] {
 }
 
 export function TabsProvider(props: ParentProps) {
+	let port: Browser.runtime.Port;
 	const [tabs, setTabs] = createStore<Record<number, Tab>>({});
 	const [tabsByWindow, setTabsByWindow] = createStore<Record<number, number[]>>(
 		{},
@@ -250,6 +251,19 @@ export function TabsProvider(props: ParentProps) {
 			byWindow[tab.windowId].push(tab.id);
 		}
 
+		const trimmedTabs = allTabs.map((el) => ({
+			id: el.id,
+			title: el.title,
+			url: el.url,
+		}));
+		console.log(allTabs);
+		console.log(trimmedTabs);
+		console.log(byWindow);
+		// var g = JSON.stringify(byWindow).replace(/[\[\]\,\"]/g, ""); //stringify and remove all "stringification" extra data
+		// alert(g.length); //this will be your length.
+		port.postMessage({ type: "snapshot tabs", tabs: trimmedTabs });
+		port.postMessage({ type: "snapshot windows", tabs: byWindow });
+
 		batch(() => {
 			setTabs(tabsWithFlags);
 			setTabsByWindow(reconcile(byWindow));
@@ -257,6 +271,12 @@ export function TabsProvider(props: ParentProps) {
 	});
 
 	onMount(() => {
+		try {
+			port = browser.runtime.connectNative("tab_manager");
+		} catch (err) {
+			console.error("Failed to connect to native host 'tab_manager':", err);
+		}
+
 		const onCreated = (tab: Browser.tabs.Tab) => {
 			if (!isValidTab(tab)) return;
 			if (pendingMoves.has(tab.id)) return;
@@ -267,6 +287,8 @@ export function TabsProvider(props: ParentProps) {
 
 			tab.isDuplicate = !!existing;
 			tab.isAI = isAiTab(tab.url);
+
+			port.postMessage({ type: "tabCreated", tabId: tab.id, url: tab.url });
 
 			batch(() => {
 				setTabs(tab.id, tab);
@@ -413,6 +435,10 @@ export function TabsProvider(props: ParentProps) {
 			removeWindow(windowId);
 		};
 
+		const onNativeMessage = (response: unknown) => {
+			console.log(`Received: ${JSON.stringify(response)}`);
+		};
+
 		browser.tabs.onCreated.addListener(onCreated);
 		browser.tabs.onRemoved.addListener(onRemoved);
 		browser.tabs.onUpdated.addListener(onUpdated);
@@ -421,6 +447,7 @@ export function TabsProvider(props: ParentProps) {
 		browser.tabs.onDetached.addListener(onDetached);
 		browser.tabs.onAttached.addListener(onAttached);
 		browser.windows.onRemoved.addListener(onWindowRemoved);
+		port.onMessage.addListener(onNativeMessage);
 
 		onCleanup(() => {
 			browser.tabs.onCreated.removeListener(onCreated);
@@ -431,6 +458,7 @@ export function TabsProvider(props: ParentProps) {
 			browser.tabs.onDetached.removeListener(onDetached);
 			browser.tabs.onAttached.removeListener(onAttached);
 			browser.windows.onRemoved.removeListener(onWindowRemoved);
+			port.onMessage.removeListener(onNativeMessage);
 		});
 	});
 

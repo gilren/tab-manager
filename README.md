@@ -104,7 +104,6 @@ From version 77, users must explicitly enable the masonry layout:
 1. Open `about:config` in Firefox
 2. Search for `layout.css.grid-template-masonry-value.enabled`
 3. Set to `true`
-
 ## License
 
 MIT

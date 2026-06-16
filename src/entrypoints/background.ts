@@ -5,8 +5,7 @@ export default defineBackground(() => {
 });
 
 async function openTabManager(): Promise<void> {
-	const path = "/app.html";
-	const fullUrl = browser.runtime.getURL(path);
+	const fullUrl = browser.runtime.getURL("/app.html");
 
 	const tabs = await browser.tabs.query({ url: fullUrl });
 
@@ -19,3 +18,5 @@ async function openTabManager(): Promise<void> {
 		await browser.tabs.create({ url: fullUrl, active: true });
 	}
 }
+
+// TODO: Implement the onfirefox load to send correct pos to wayland.

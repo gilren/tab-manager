@@ -1,0 +1,7 @@
+{
+  "name": "tab_manager",
+  "description": "Host for Tab Manager Extenstion",
+  "path": "/home/renaud/.local/bin/tab-mcp",
+  "type": "stdio",
+  "allowed_extensions": ["tab-manager@gilren"]
+}
