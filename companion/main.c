@@ -67,19 +67,23 @@ int send_message(const char *response) {
   fwrite(response, 1, response_length, stdout);
   fflush(stdout);
 
-  return 1;
+  return 0;
 }
 
 int handle_message(const char *message, char *response, size_t response_size) {
   cJSON *json = cJSON_Parse(message);
-  char *string = cJSON_Print(json);
+  if (json == NULL) {
+    fprintf(stderr, "Invalid JSON\n");
+    return 1;
+  }
 
+  char *string = cJSON_Print(json);
   if (string == NULL) {
     fprintf(stderr, "Failed to print message.\n");
   }
 
   // fprintf(stderr, "%s\n", string);
-  return 1;
+  return 0;
 }
 
 // TODO: Handle first load, write window screen location into file, send

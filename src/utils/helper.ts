@@ -20,3 +20,41 @@ export function isTabDiscardable(tab: Tab) {
 		(!tab.url.startsWith("about:") || tab.url.startsWith("about:new"))
 	);
 }
+
+const aiKeywords = ["chatgpt", "claude", "duck.ai", "gemini"];
+
+export function isAiTab(url: string): boolean {
+	const lower = url.toLowerCase();
+	return aiKeywords.some((kw) => lower.includes(kw));
+}
+
+export function groupTabsByUrl(tabs: Tab[]): Map<string, number[]> {
+	const map = new Map<string, number[]>();
+	for (const tab of tabs) {
+		const existing = map.get(tab.url);
+		if (existing) {
+			existing.push(tab.id);
+		} else {
+			map.set(tab.url, [tab.id]);
+		}
+	}
+	return map;
+}
+
+export function normalizeSearch(search = ""): string {
+	return search.toLowerCase().trim();
+}
+
+export function matchesSearch(tab: Tab, search = ""): boolean {
+	const needle = normalizeSearch(search);
+	if (!needle) return true;
+
+	return (
+		tab.title?.toLowerCase().includes(needle) ||
+		tab.url.toLowerCase().includes(needle)
+	);
+}
+
+export function extractTabIds(tabs: Tab[]): number[] {
+	return tabs.map((tab) => tab.id);
+}

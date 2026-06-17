@@ -1,7 +1,15 @@
 import type { ParentProps } from "solid-js";
 import type { Browser } from "wxt/browser";
 import type { OnActivatedInfoFirefox, Tab } from "@/types";
-import { isTabDiscardable, isValidTab } from "@/utils/helper";
+import {
+	extractTabIds,
+	groupTabsByUrl,
+	isAiTab,
+	isTabDiscardable,
+	isValidTab,
+	matchesSearch,
+	normalizeSearch,
+} from "@/utils/helper";
 
 interface TabMovePreview {
 	tabId: number;
@@ -48,46 +56,8 @@ export function useTabsContext(): TabCollection {
 	return context;
 }
 
-const aiKeywords = ["chatgpt", "claude", "duck.ai", "gemini"];
-
-function isAiTab(url: string): boolean {
-	const lower = url.toLowerCase();
-	return aiKeywords.some((kw) => lower.includes(kw));
-}
-
-function groupTabsByUrl(tabs: Tab[]): Map<string, number[]> {
-	const map = new Map<string, number[]>();
-	for (const tab of tabs) {
-		const existing = map.get(tab.url);
-		if (existing) {
-			existing.push(tab.id);
-		} else {
-			map.set(tab.url, [tab.id]);
-		}
-	}
-	return map;
-}
-
-function normalizeSearch(search = ""): string {
-	return search.toLowerCase().trim();
-}
-
-function matchesSearch(tab: Tab, search = ""): boolean {
-	const needle = normalizeSearch(search);
-	if (!needle) return true;
-
-	return (
-		tab.title?.toLowerCase().includes(needle) ||
-		tab.url.toLowerCase().includes(needle)
-	);
-}
-
-function tabIds(tabs: Tab[]): number[] {
-	return tabs.map((tab) => tab.id);
-}
-
 export function TabsProvider(props: ParentProps) {
-	let port: Browser.runtime.Port;
+	let port: Browser.runtime.Port | undefined;
 	const [tabs, setTabs] = createStore<Record<number, Tab>>({});
 	const [tabsByWindow, setTabsByWindow] = createStore<Record<number, number[]>>(
 		{},
@@ -95,9 +65,17 @@ export function TabsProvider(props: ParentProps) {
 
 	const [data] = createResource(async () => browser.tabs.query({}));
 
+	// Moves triggered by commitTabMove also emit browser move/detach/attach events.
+	// Keep their IDs here so those event handlers don't apply the same change twice.
 	const pendingMoves = new Set<number>();
 
-	const allTabs = () => Object.values(tabs);
+	const allTabs = createMemo(() => Object.values(tabs));
+	const allDuplicateTabs = createMemo(() =>
+		allTabs().filter((t) => t.isDuplicate),
+	);
+	const allLoadedTabs = createMemo(() => allTabs().filter(isTabDiscardable));
+	const allAiTabs = createMemo(() => allTabs().filter((tab) => tab.isAI));
+
 	const tabsForWindow = (windowId: number, search = "") =>
 		(tabsByWindow[windowId] ?? [])
 			.map((id) => tabs[id])
@@ -105,10 +83,6 @@ export function TabsProvider(props: ParentProps) {
 			.filter((tab) => matchesSearch(tab, search));
 	const matchingTabs = (search = "") =>
 		allTabs().filter((tab) => matchesSearch(tab, search));
-	const duplicateTabs = (source = allTabs()) =>
-		source.filter((tab) => tab.isDuplicate);
-	const loadedTabs = (source = allTabs()) => source.filter(isTabDiscardable);
-	const aiTabs = (source = allTabs()) => source.filter((tab) => tab.isAI);
 
 	const removeWindow = (windowId: number) => {
 		setTabsByWindow(
@@ -122,39 +96,41 @@ export function TabsProvider(props: ParentProps) {
 		windowIds: () => Object.keys(tabsByWindow).map(Number),
 		tabsForWindow,
 		tabCount: (search = "") => matchingTabs(search).length,
-		duplicateCount: () => duplicateTabs().length,
-		loadedCount: () => loadedTabs().length,
-		aiCount: () => aiTabs().length,
+		duplicateCount: () => allDuplicateTabs().length,
+		loadedCount: () => allLoadedTabs().length,
+		aiCount: () => allAiTabs().length,
 		duplicateCountForWindow: (windowId, search = "") =>
-			duplicateTabs(tabsForWindow(windowId, search)).length,
+			tabsForWindow(windowId, search).filter((t) => t.isDuplicate).length,
 		loadedCountForWindow: (windowId, search = "") =>
-			loadedTabs(tabsForWindow(windowId, search)).length,
+			tabsForWindow(windowId, search).filter(isTabDiscardable).length,
 
 		discardLoadedTabs: async () => {
 			await Promise.all(
-				tabIds(loadedTabs()).map((id) => browser.tabs.discard(id)),
+				extractTabIds(allLoadedTabs()).map((id) => browser.tabs.discard(id)),
 			);
 		},
 		removeDuplicateTabs: async () => {
-			await browser.tabs.remove(tabIds(duplicateTabs()));
+			await browser.tabs.remove(extractTabIds(allDuplicateTabs()));
 		},
 		removeAiTabs: async () => {
-			await browser.tabs.remove(tabIds(aiTabs()));
+			await browser.tabs.remove(extractTabIds(allAiTabs()));
 		},
 		removeMatchingTabs: async (search: string) => {
 			if (!normalizeSearch(search)) return;
-			await browser.tabs.remove(tabIds(matchingTabs(search)));
+			await browser.tabs.remove(extractTabIds(matchingTabs(search)));
 		},
 		removeWindowDuplicateTabs: async (windowId, search = "") => {
 			await browser.tabs.remove(
-				tabIds(duplicateTabs(tabsForWindow(windowId, search))),
+				extractTabIds(
+					tabsForWindow(windowId, search).filter((tab) => tab.isDuplicate),
+				),
 			);
 		},
 		discardWindowLoadedTabs: async (windowId, search = "") => {
 			await Promise.all(
-				tabIds(loadedTabs(tabsForWindow(windowId, search))).map((id) =>
-					browser.tabs.discard(id),
-				),
+				extractTabIds(
+					tabsForWindow(windowId, search).filter(isTabDiscardable),
+				).map((id) => browser.tabs.discard(id)),
 			);
 		},
 		closeWindow: async (windowId: number) => {
@@ -171,6 +147,7 @@ export function TabsProvider(props: ParentProps) {
 			await browser.tabs.remove(tabId);
 		},
 		previewTabMove: ({ tabId, targetId, fromWindowId, toWindowId }) => {
+			// Optimistically update local ordering while the user drags a tab.
 			if (fromWindowId === toWindowId) {
 				setTabsByWindow(fromWindowId, (ids) => {
 					const fromIndex = ids.indexOf(tabId);
@@ -189,6 +166,7 @@ export function TabsProvider(props: ParentProps) {
 				return;
 			}
 
+			// Cross-window moves also need the tab's windowId updated in the tab store.
 			const fromTabs = [...(tabsByWindow[fromWindowId] ?? [])];
 			const toTabs = [...(tabsByWindow[toWindowId] ?? [])];
 			const fromIndex = fromTabs.indexOf(tabId);
@@ -210,6 +188,8 @@ export function TabsProvider(props: ParentProps) {
 
 			if (windowId == null || index == null || index === -1) return;
 
+			// Browser APIs will emit follow-up move events; pendingMoves tells handlers
+			// this state change was already previewed locally.
 			pendingMoves.add(tabId);
 			try {
 				await browser.tabs.move(tabId, { windowId, index });
@@ -231,7 +211,8 @@ export function TabsProvider(props: ParentProps) {
 			tabsWithFlags[bt.id] = bt;
 		}
 
-		// Identify duplicates
+		// Keep the oldest tab for each URL; mark newer tabs with that URL as
+		// duplicates.
 		const groupedTabIds = groupTabsByUrl(Object.values(tabsWithFlags));
 
 		for (const tab of Object.values(tabsWithFlags)) {
@@ -256,19 +237,199 @@ export function TabsProvider(props: ParentProps) {
 			title: el.title,
 			url: el.url,
 		}));
-		console.log(allTabs);
-		console.log(trimmedTabs);
-		console.log(byWindow);
-		// var g = JSON.stringify(byWindow).replace(/[\[\]\,\"]/g, ""); //stringify and remove all "stringification" extra data
-		// alert(g.length); //this will be your length.
-		port.postMessage({ type: "snapshot tabs", tabs: trimmedTabs });
-		port.postMessage({ type: "snapshot windows", tabs: byWindow });
 
 		batch(() => {
 			setTabs(tabsWithFlags);
 			setTabsByWindow(reconcile(byWindow));
+
+			// Keep the native helper in sync without sending full browser tab objects.
+			port?.postMessage({ type: "snapshot tabs", tabs: trimmedTabs });
+			port?.postMessage({ type: "snapshot windows", tabs: byWindow });
 		});
 	});
+
+	const handleTabCreated = (tab: Browser.tabs.Tab) => {
+		if (!isValidTab(tab)) return;
+		if (pendingMoves.has(tab.id)) return;
+
+		const existing = allTabs().find(
+			(existingTab) => existingTab.url === tab.url,
+		);
+
+		const newTab: Tab = {
+			...tab,
+			isDuplicate: !!existing,
+			isAI: isAiTab(tab.url),
+		};
+
+		port?.postMessage({
+			type: "tabCreated",
+			tabId: newTab.id,
+			url: newTab.url,
+		});
+
+		batch(() => {
+			setTabs(newTab.id, newTab);
+			setTabsByWindow(tab.windowId, (tabs = []) => [...tabs, newTab.id]);
+		});
+	};
+
+	const handleTabRemoved = (tabId: number) => {
+		batch(() => {
+			const removedTab = tabs[tabId];
+			if (!removedTab) return;
+			const windowId = removedTab.windowId;
+
+			const nextTabsByWindow = (tabsByWindow[windowId] ?? []).filter(
+				(id) => id !== tabId,
+			);
+
+			const remainingTabs = Object.values(tabs).filter((t) => t.id !== tabId);
+
+			// If the removed tab was the oldest copy of a URL, another tab may stop
+			// being duplicate.
+			const sameUrlTabs = remainingTabs.filter((t) => t.url === removedTab.url);
+
+			const oldestId =
+				sameUrlTabs.length > 0
+					? Math.min(...sameUrlTabs.map((t) => t.id))
+					: null;
+
+			setTabsByWindow(windowId, nextTabsByWindow);
+
+			setTabs(
+				produce((tabs) => {
+					delete tabs[tabId];
+
+					if (oldestId !== null) {
+						for (const t of Object.values(tabs)) {
+							if (t.url === removedTab.url) {
+								t.isDuplicate = t.id !== oldestId;
+							}
+						}
+					}
+				}),
+			);
+
+			// Remove the window if this tab was alone
+			if (nextTabsByWindow.length === 0) {
+				removeWindow(windowId);
+			}
+		});
+	};
+
+	const handleTabUpdated = (
+		_: number,
+		info: Browser.tabs.OnUpdatedInfo,
+		tab: Browser.tabs.Tab,
+	) => {
+		if (!isValidTab(tab)) return;
+		if (pendingMoves.has(tab.id)) return;
+
+		// Ignore frequent update noise like title/favIcon changes.
+		const relevant = ["url", "discarded"];
+		if (!Object.keys(info).some((k) => relevant.includes(k))) return;
+
+		setTabs(
+			produce((s) => {
+				if (!s[tab.id]) return;
+
+				// Ignore transient about:blank that Firefox sets during tab discard/undiscard
+				// If the URL "changed" but is identical to what we have, skip the update
+				const prevUrl = s[tab.id].url;
+				if (Object.keys(info).includes("url") && prevUrl === tab.url) return;
+
+				Object.assign(s[tab.id], tab);
+				s[tab.id].isAI = isAiTab(s[tab.id].url);
+
+				// A URL change can affect duplicate status for both the old and new URL
+				// groups.
+				const affectedUrls = new Set([prevUrl, tab.url].filter(Boolean));
+				for (const url of affectedUrls) {
+					const sharing = Object.values(s).filter((t) => t.url === url);
+					if (sharing.length <= 1) {
+						if (sharing[0]) sharing[0].isDuplicate = false;
+					} else {
+						const oldestId = Math.min(...sharing.map((t) => t.id));
+						for (const t of sharing) {
+							t.isDuplicate = t.id !== oldestId;
+						}
+					}
+				}
+			}),
+		);
+	};
+
+	const handleTabActivated = ({
+		tabId,
+		previousTabId,
+	}: OnActivatedInfoFirefox) => {
+		batch(() => {
+			setTabs(tabId, "active", true);
+			if (previousTabId != null) {
+				setTabs(previousTabId, "active", false);
+			}
+		});
+	};
+
+	const handleTabMoved = (tabId: number, info: Browser.tabs.OnMovedInfo) => {
+		if (pendingMoves.has(tabId)) return;
+
+		const { windowId, fromIndex, toIndex } = info;
+
+		const groupTabs = [...tabsByWindow[windowId]];
+		const [removed] = groupTabs.splice(fromIndex, 1);
+		groupTabs.splice(toIndex, 0, removed);
+
+		setTabsByWindow(windowId, groupTabs);
+	};
+
+	const handleTabDetached = (
+		tabId: number,
+		info: Browser.tabs.OnDetachedInfo,
+	) => {
+		if (pendingMoves.has(tabId)) return;
+		const { oldWindowId } = info;
+
+		const nextTabsByWindow = (tabsByWindow[oldWindowId] ?? []).filter(
+			(id) => id !== tabId,
+		);
+
+		setTabsByWindow(oldWindowId, nextTabsByWindow);
+
+		// Remove the window if this tab was alone
+		if (nextTabsByWindow.length === 0) {
+			removeWindow(oldWindowId);
+		}
+	};
+
+	const handleTabAttached = (
+		tabId: number,
+		info: Browser.tabs.OnAttachedInfo,
+	) => {
+		if (pendingMoves.has(tabId)) return;
+
+		const { newWindowId, newPosition } = info;
+
+		batch(() => {
+			setTabs(tabId, "windowId", newWindowId);
+			setTabsByWindow(newWindowId, (arr) => {
+				const copy = [...(arr || [])];
+				copy.splice(newPosition, 0, tabId);
+				return copy;
+			});
+		});
+	};
+
+	const handleWindowRemoved = (windowId: number) => {
+		removeWindow(windowId);
+	};
+
+	const handleNativeMessage = (response: unknown) => {
+		if (typeof response === "object" && response !== null) {
+			console.log(`Received: ${JSON.stringify(response)}`);
+		}
+	};
 
 	onMount(() => {
 		try {
@@ -277,188 +438,26 @@ export function TabsProvider(props: ParentProps) {
 			console.error("Failed to connect to native host 'tab_manager':", err);
 		}
 
-		const onCreated = (tab: Browser.tabs.Tab) => {
-			if (!isValidTab(tab)) return;
-			if (pendingMoves.has(tab.id)) return;
-
-			const existing = allTabs().find(
-				(existingTab) => existingTab.url === tab.url,
-			);
-
-			tab.isDuplicate = !!existing;
-			tab.isAI = isAiTab(tab.url);
-
-			port.postMessage({ type: "tabCreated", tabId: tab.id, url: tab.url });
-
-			batch(() => {
-				setTabs(tab.id, tab);
-				setTabsByWindow(tab.windowId, (tabs = []) => [...tabs, tab.id]);
-			});
-		};
-
-		const onRemoved = (tabId: number) => {
-			batch(() => {
-				const removedTab = tabs[tabId];
-				if (!removedTab) return;
-				const windowId = removedTab.windowId;
-
-				const nextTabsByWindow = (tabsByWindow[windowId] ?? []).filter(
-					(id) => id !== tabId,
-				);
-
-				const remainingTabs = Object.values(tabs).filter((t) => t.id !== tabId);
-
-				const sameUrlTabs = remainingTabs.filter(
-					(t) => t.url === removedTab.url,
-				);
-
-				const oldestId =
-					sameUrlTabs.length > 0
-						? Math.min(...sameUrlTabs.map((t) => t.id))
-						: null;
-
-				setTabsByWindow(windowId, nextTabsByWindow);
-
-				setTabs(
-					produce((tabs) => {
-						delete tabs[tabId];
-
-						if (oldestId !== null) {
-							for (const t of Object.values(tabs)) {
-								if (t.url === removedTab.url) {
-									t.isDuplicate = t.id !== oldestId;
-								}
-							}
-						}
-					}),
-				);
-
-				// Remove the window if this tab was alone
-				if (nextTabsByWindow.length === 0) {
-					removeWindow(windowId);
-				}
-			});
-		};
-
-		const onUpdated = (
-			_: number,
-			info: Browser.tabs.OnUpdatedInfo,
-			tab: Browser.tabs.Tab,
-		) => {
-			if (!isValidTab(tab)) return;
-			if (pendingMoves.has(tab.id)) return;
-
-			const relevant = ["url", "discarded"];
-			if (!Object.keys(info).some((k) => relevant.includes(k))) return;
-
-			setTabs(
-				produce((s) => {
-					if (!s[tab.id]) return;
-
-					// Ignore transient about:blank that Firefox sets during tab discard/undiscard
-					// If the URL "changed" but is identical to what we have, skip the update
-					const prevUrl = s[tab.id].url;
-					if (Object.keys(info).includes("url") && prevUrl === tab.url) return;
-
-					Object.assign(s[tab.id], tab);
-					s[tab.id].isAI = isAiTab(s[tab.id].url);
-
-					const affectedUrls = new Set([prevUrl, tab.url].filter(Boolean));
-					for (const url of affectedUrls) {
-						const sharing = Object.values(s).filter((t) => t.url === url);
-						if (sharing.length <= 1) {
-							if (sharing[0]) sharing[0].isDuplicate = false;
-						} else {
-							const oldestId = Math.min(...sharing.map((t) => t.id));
-							for (const t of sharing) {
-								t.isDuplicate = t.id !== oldestId;
-							}
-						}
-					}
-				}),
-			);
-		};
-
-		const onActivated = ({ tabId, previousTabId }: OnActivatedInfoFirefox) => {
-			batch(() => {
-				setTabs(tabId, "active", true);
-				if (previousTabId != null) {
-					setTabs(previousTabId, "active", false);
-				}
-			});
-		};
-
-		const onMoved = (tabId: number, info: Browser.tabs.OnMovedInfo) => {
-			if (pendingMoves.has(tabId)) return;
-
-			const { windowId, fromIndex, toIndex } = info;
-
-			const groupTabs = [...tabsByWindow[windowId]];
-			const [removed] = groupTabs.splice(fromIndex, 1);
-			groupTabs.splice(toIndex, 0, removed);
-
-			setTabsByWindow(windowId, groupTabs);
-		};
-
-		const onDetached = (tabId: number, info: Browser.tabs.OnDetachedInfo) => {
-			if (pendingMoves.has(tabId)) return;
-			const { oldWindowId } = info;
-
-			const nextTabsByWindow = (tabsByWindow[oldWindowId] ?? []).filter(
-				(id) => id !== tabId,
-			);
-
-			setTabsByWindow(oldWindowId, nextTabsByWindow);
-
-			// Remove the window if this tab was alone
-			if (nextTabsByWindow.length === 0) {
-				removeWindow(oldWindowId);
-			}
-		};
-
-		const onAttached = (tabId: number, info: Browser.tabs.OnAttachedInfo) => {
-			if (pendingMoves.has(tabId)) return;
-
-			const { newWindowId, newPosition } = info;
-
-			batch(() => {
-				setTabs(tabId, "windowId", newWindowId);
-				setTabsByWindow(newWindowId, (arr) => {
-					const copy = [...(arr || [])];
-					copy.splice(newPosition, 0, tabId);
-					return copy;
-				});
-			});
-		};
-
-		const onWindowRemoved = (windowId: number) => {
-			removeWindow(windowId);
-		};
-
-		const onNativeMessage = (response: unknown) => {
-			console.log(`Received: ${JSON.stringify(response)}`);
-		};
-
-		browser.tabs.onCreated.addListener(onCreated);
-		browser.tabs.onRemoved.addListener(onRemoved);
-		browser.tabs.onUpdated.addListener(onUpdated);
-		browser.tabs.onActivated.addListener(onActivated);
-		browser.tabs.onMoved.addListener(onMoved);
-		browser.tabs.onDetached.addListener(onDetached);
-		browser.tabs.onAttached.addListener(onAttached);
-		browser.windows.onRemoved.addListener(onWindowRemoved);
-		port.onMessage.addListener(onNativeMessage);
+		browser.tabs.onCreated.addListener(handleTabCreated);
+		browser.tabs.onRemoved.addListener(handleTabRemoved);
+		browser.tabs.onUpdated.addListener(handleTabUpdated);
+		browser.tabs.onActivated.addListener(handleTabActivated);
+		browser.tabs.onMoved.addListener(handleTabMoved);
+		browser.tabs.onDetached.addListener(handleTabDetached);
+		browser.tabs.onAttached.addListener(handleTabAttached);
+		browser.windows.onRemoved.addListener(handleWindowRemoved);
+		port?.onMessage.addListener(handleNativeMessage);
 
 		onCleanup(() => {
-			browser.tabs.onCreated.removeListener(onCreated);
-			browser.tabs.onRemoved.removeListener(onRemoved);
-			browser.tabs.onUpdated.removeListener(onUpdated);
-			browser.tabs.onActivated.removeListener(onActivated);
-			browser.tabs.onMoved.removeListener(onMoved);
-			browser.tabs.onDetached.removeListener(onDetached);
-			browser.tabs.onAttached.removeListener(onAttached);
-			browser.windows.onRemoved.removeListener(onWindowRemoved);
-			port.onMessage.removeListener(onNativeMessage);
+			browser.tabs.onCreated.removeListener(handleTabCreated);
+			browser.tabs.onRemoved.removeListener(handleTabRemoved);
+			browser.tabs.onUpdated.removeListener(handleTabUpdated);
+			browser.tabs.onActivated.removeListener(handleTabActivated);
+			browser.tabs.onMoved.removeListener(handleTabMoved);
+			browser.tabs.onDetached.removeListener(handleTabDetached);
+			browser.tabs.onAttached.removeListener(handleTabAttached);
+			browser.windows.onRemoved.removeListener(handleWindowRemoved);
+			port?.onMessage.removeListener(handleNativeMessage);
 		});
 	});
 
