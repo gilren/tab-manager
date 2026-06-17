@@ -1,7 +1,6 @@
 import { useSortable } from "@dnd-kit/solid/sortable";
-import type { Tab } from "@/types";
-
 import { useTabsContext } from "@/store/tabs";
+import type { Tab } from "@/types";
 import { isTabDiscardable } from "@/utils/helper";
 
 interface TabItemProps {

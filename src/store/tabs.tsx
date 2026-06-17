@@ -25,22 +25,18 @@ interface TabCollection {
 	duplicateCount: () => number;
 	loadedCount: () => number;
 	aiCount: () => number;
-	duplicateCountForWindow: (windowId: number, search?: string) => number;
-	loadedCountForWindow: (windowId: number, search?: string) => number;
 
-	discardLoadedTabs: () => Promise<void>;
-	removeDuplicateTabs: () => Promise<void>;
-	removeAiTabs: () => Promise<void>;
-	removeMatchingTabs: (search: string) => Promise<void>;
-	removeWindowDuplicateTabs: (
-		windowId: number,
-		search?: string,
-	) => Promise<void>;
-	discardWindowLoadedTabs: (windowId: number, search?: string) => Promise<void>;
-	closeWindow: (windowId: number) => Promise<void>;
-	discardTab: (tabId: number) => Promise<void>;
 	focusTab: (tabId: number, windowId: number) => Promise<void>;
+
+	discardTab: (tabId: number) => Promise<void>;
+	discardLoadedTabs: () => Promise<void>;
 	closeTab: (tabId: number) => Promise<void>;
+	closeTabs: (tabIds: number[]) => Promise<void>;
+	closeDuplicateTabs: () => Promise<void>;
+	closeAiTabs: () => Promise<void>;
+	closeSearchedTabs: (search: string) => Promise<void>;
+	closeWindow: (windowId: number) => Promise<void>;
+
 	previewTabMove: (move: TabMovePreview) => void;
 	commitTabMove: (tabId: number, windowId: number) => Promise<void>;
 }
@@ -70,11 +66,11 @@ export function TabsProvider(props: ParentProps) {
 	const pendingMoves = new Set<number>();
 
 	const allTabs = createMemo(() => Object.values(tabs));
-	const allDuplicateTabs = createMemo(() =>
+	const duplicatedTabs = createMemo(() =>
 		allTabs().filter((t) => t.isDuplicate),
 	);
-	const allLoadedTabs = createMemo(() => allTabs().filter(isTabDiscardable));
-	const allAiTabs = createMemo(() => allTabs().filter((tab) => tab.isAI));
+	const loadedTabs = createMemo(() => allTabs().filter(isTabDiscardable));
+	const aiTabs = createMemo(() => allTabs().filter((tab) => tab.isAI));
 
 	const tabsForWindow = (windowId: number, search = "") =>
 		(tabsByWindow[windowId] ?? [])
@@ -92,60 +88,46 @@ export function TabsProvider(props: ParentProps) {
 		);
 	};
 
+	const closeTab = (tabId: number) => browser.tabs.remove(tabId);
+	const closeTabs = (tabIds: number[]) => browser.tabs.remove(tabIds);
+
 	const tabCollection: TabCollection = {
 		windowIds: () => Object.keys(tabsByWindow).map(Number),
 		tabsForWindow,
 		tabCount: (search = "") => matchingTabs(search).length,
-		duplicateCount: () => allDuplicateTabs().length,
-		loadedCount: () => allLoadedTabs().length,
-		aiCount: () => allAiTabs().length,
-		duplicateCountForWindow: (windowId, search = "") =>
-			tabsForWindow(windowId, search).filter((t) => t.isDuplicate).length,
-		loadedCountForWindow: (windowId, search = "") =>
-			tabsForWindow(windowId, search).filter(isTabDiscardable).length,
+		duplicateCount: () => duplicatedTabs().length,
+		loadedCount: () => loadedTabs().length,
+		aiCount: () => aiTabs().length,
 
-		discardLoadedTabs: async () => {
-			await Promise.all(
-				extractTabIds(allLoadedTabs()).map((id) => browser.tabs.discard(id)),
-			);
-		},
-		removeDuplicateTabs: async () => {
-			await browser.tabs.remove(extractTabIds(allDuplicateTabs()));
-		},
-		removeAiTabs: async () => {
-			await browser.tabs.remove(extractTabIds(allAiTabs()));
-		},
-		removeMatchingTabs: async (search: string) => {
-			if (!normalizeSearch(search)) return;
-			await browser.tabs.remove(extractTabIds(matchingTabs(search)));
-		},
-		removeWindowDuplicateTabs: async (windowId, search = "") => {
-			await browser.tabs.remove(
-				extractTabIds(
-					tabsForWindow(windowId, search).filter((tab) => tab.isDuplicate),
-				),
-			);
-		},
-		discardWindowLoadedTabs: async (windowId, search = "") => {
-			await Promise.all(
-				extractTabIds(
-					tabsForWindow(windowId, search).filter(isTabDiscardable),
-				).map((id) => browser.tabs.discard(id)),
-			);
-		},
-		closeWindow: async (windowId: number) => {
-			await browser.windows.remove(windowId);
-		},
-		discardTab: async (tabId: number) => {
-			await browser.tabs.discard(tabId);
-		},
 		focusTab: async (tabId: number, windowId: number) => {
 			await browser.tabs.update(tabId, { active: true });
 			await browser.windows.update(windowId, { focused: true });
 		},
-		closeTab: async (tabId: number) => {
-			await browser.tabs.remove(tabId);
+
+		discardTab: async (tabId: number) => {
+			await browser.tabs.discard(tabId);
 		},
+		discardLoadedTabs: async () => {
+			await Promise.all(
+				extractTabIds(loadedTabs()).map((id) => browser.tabs.discard(id)),
+			);
+		},
+		closeTab,
+		closeTabs,
+		closeDuplicateTabs: async () => {
+			await closeTabs(extractTabIds(duplicatedTabs()));
+		},
+		closeAiTabs: async () => {
+			await closeTabs(extractTabIds(aiTabs()));
+		},
+		closeSearchedTabs: async (search: string) => {
+			if (!normalizeSearch(search)) return;
+			await closeTabs(extractTabIds(matchingTabs(search)));
+		},
+		closeWindow: async (windowId: number) => {
+			await browser.windows.remove(windowId);
+		},
+
 		previewTabMove: ({ tabId, targetId, fromWindowId, toWindowId }) => {
 			// Optimistically update local ordering while the user drags a tab.
 			if (fromWindowId === toWindowId) {

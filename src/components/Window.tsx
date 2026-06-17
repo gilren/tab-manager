@@ -13,21 +13,25 @@ export default function Window(props: WindowProps) {
 	const tabs = createMemo(() =>
 		tabCollection.tabsForWindow(props.id, props.search()),
 	);
-	const loadedCount = createMemo(() =>
-		tabCollection.loadedCountForWindow(props.id, props.search()),
+
+	const duplicatedTabs = createMemo(() =>
+		tabs().filter((tab) => tab.isDuplicate),
 	);
-	const duplicateCount = createMemo(() =>
-		tabCollection.duplicateCountForWindow(props.id, props.search()),
-	);
+	const duplicateCount = createMemo(() => duplicatedTabs().length);
+
+	const loadedTabs = createMemo(() => tabs().filter(isTabDiscardable));
+	const loadedCount = createMemo(() => loadedTabs().length);
 
 	const handleDuplicated = async (event: MouseEvent) => {
 		event.stopPropagation();
-		await tabCollection.removeWindowDuplicateTabs(props.id, props.search());
+		await tabCollection.closeTabs(extractTabIds(duplicatedTabs()));
 	};
 
 	const handleLoaded = async (event: MouseEvent) => {
 		event.stopPropagation();
-		await tabCollection.discardWindowLoadedTabs(props.id, props.search());
+		await Promise.all(
+			extractTabIds(loadedTabs()).map((id) => browser.tabs.discard(id)),
+		);
 	};
 
 	const handleClose = async (event: MouseEvent) => {
@@ -64,7 +68,7 @@ export default function Window(props: WindowProps) {
 									stroke-linecap="round"
 									stroke-linejoin="round"
 								>
-									<title>Remove duplicated tabs</title>
+									<title>Close duplicated tabs</title>
 									<path d="M21 21H8a2 2 0 0 1-1.42-.587l-3.994-3.999a2 2 0 0 1 0-2.828l10-10a2 2 0 0 1 2.829 0l5.999 6a2 2 0 0 1 0 2.828L12.834 21" />
 									<path d="m5.082 11.09 8.828 8.828" />
 								</svg>

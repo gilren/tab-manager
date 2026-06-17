@@ -40,19 +40,19 @@ export default function Header({ search, setSearch }: HeaderProps) {
 		await tabCollection.discardLoadedTabs();
 	};
 
-	const handleRemoveDuplicateTabs = async (event: MouseEvent) => {
+	const handleCloseDuplicateTabs = async (event: MouseEvent) => {
 		event.preventDefault();
-		await tabCollection.removeDuplicateTabs();
+		await tabCollection.closeDuplicateTabs();
 	};
 
-	const handleRemoveAiTabs = async (event: MouseEvent) => {
+	const handleCloseAiTabs = async (event: MouseEvent) => {
 		event.preventDefault();
-		await tabCollection.removeAiTabs();
+		await tabCollection.closeAiTabs();
 	};
 
-	const handleRemoveMatchingTabs = async (event: MouseEvent) => {
+	const handleCloseMatchingTabs = async (event: MouseEvent) => {
 		event.preventDefault();
-		await tabCollection.removeMatchingTabs(search());
+		await tabCollection.closeSearchedTabs(search());
 		setSearch("");
 	};
 
@@ -171,7 +171,7 @@ export default function Header({ search, setSearch }: HeaderProps) {
 							type="button"
 							class="btn btn-loaded"
 							disabled={loadedCount() === 0}
-							title="Remove loaded tabs"
+							title="Close loaded tabs"
 							onClick={handleDiscardLoadedTabs}
 						>
 							[REMOVE LOADED
@@ -181,8 +181,8 @@ export default function Header({ search, setSearch }: HeaderProps) {
 							type="button"
 							class="btn btn-duplicated"
 							disabled={duplicateCount() === 0}
-							title="Remove duplicate tabs"
-							onClick={handleRemoveDuplicateTabs}
+							title="Close duplicate tabs"
+							onClick={handleCloseDuplicateTabs}
 						>
 							[REMOVE DUPLICATES
 							{duplicateCount() > 0 && ` (${duplicateCount()})`}]
@@ -191,8 +191,8 @@ export default function Header({ search, setSearch }: HeaderProps) {
 							type="button"
 							class="btn btn-ai"
 							disabled={aiCount() === 0}
-							title="Remove AI tabs"
-							onClick={handleRemoveAiTabs}
+							title="Close AI tabs"
+							onClick={handleCloseAiTabs}
 						>
 							[REMOVE AI{aiCount() > 0 && ` (${aiCount()})`}]
 						</button>
@@ -202,8 +202,8 @@ export default function Header({ search, setSearch }: HeaderProps) {
 							type="button"
 							class="btn btn-matching"
 							disabled={matchingCount() === 0}
-							title="Remove all matching tabs"
-							onClick={handleRemoveMatchingTabs}
+							title="Close all matching tabs"
+							onClick={handleCloseMatchingTabs}
 						>
 							[REMOVE ALL MATCHING ({matchingCount()})]
 						</button>
