@@ -39,6 +39,11 @@ export default function Window(props: WindowProps) {
 		await tabCollection.closeWindow(props.id);
 	};
 
+	const handleMatching = async (event: MouseEvent) => {
+		event.stopPropagation();
+		await tabCollection.closeTabs(extractTabIds(tabs()));
+	};
+
 	return (
 		<Show when={tabs().length > 0 || props.search().trim().length > 0}>
 			<div
@@ -51,6 +56,32 @@ export default function Window(props: WindowProps) {
 						<span class="window-count">[{tabs().length}]</span>
 					</div>
 					<div class="window__actions">
+						<Show when={props.search().trim().length > 0}>
+							<button
+								type="button"
+								class="tab__btn tab__btn--close"
+								onclick={(event) => handleMatching(event)}
+							>
+								<svg
+									xmlns="http://www.w3.org/2000/svg"
+									width="14"
+									height="14"
+									viewBox="0 0 24 24"
+									fill="none"
+									stroke="currentColor"
+									stroke-width="2"
+									stroke-linecap="round"
+									stroke-linejoin="round"
+									class="lucide lucide-search-x-icon lucide-search-x"
+								>
+									<title>Close matching tabs</title>
+									<path d="m13.5 8.5-5 5" />
+									<path d="m8.5 8.5 5 5" />
+									<circle cx="11" cy="11" r="8" />
+									<path d="m21 21-4.3-4.3" />
+								</svg>
+							</button>
+						</Show>
 						<Show when={duplicateCount() > 0}>
 							<button
 								type="button"

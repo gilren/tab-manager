@@ -85,7 +85,6 @@ export default function Header({ search, setSearch }: HeaderProps) {
 						stroke-width="2"
 						stroke-linecap="round"
 						stroke-linejoin="round"
-						class="lucide lucide-x-icon lucide-x"
 					>
 						<title>Close tab</title>
 						<path d="M18 6 6 18" />

@@ -18,5 +18,3 @@ async function openTabManager(): Promise<void> {
 		await browser.tabs.create({ url: fullUrl, active: true });
 	}
 }
-
-// TODO: Implement the onfirefox load to send correct pos to wayland.

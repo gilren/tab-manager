@@ -1,5 +1,6 @@
 import type { ParentProps } from "solid-js";
 import type { Browser } from "wxt/browser";
+import { toast } from "@/lib/toaster/toast";
 import type { OnActivatedInfoFirefox, Tab } from "@/types";
 import {
 	extractTabIds,
@@ -53,7 +54,6 @@ export function useTabsContext(): TabCollection {
 }
 
 export function TabsProvider(props: ParentProps) {
-	let port: Browser.runtime.Port | undefined;
 	const [tabs, setTabs] = createStore<Record<number, Tab>>({});
 	const [tabsByWindow, setTabsByWindow] = createStore<Record<number, number[]>>(
 		{},
@@ -213,20 +213,9 @@ export function TabsProvider(props: ParentProps) {
 			if (!byWindow[tab.windowId]) byWindow[tab.windowId] = [];
 			byWindow[tab.windowId].push(tab.id);
 		}
-
-		const trimmedTabs = allTabs.map((el) => ({
-			id: el.id,
-			title: el.title,
-			url: el.url,
-		}));
-
 		batch(() => {
 			setTabs(tabsWithFlags);
 			setTabsByWindow(reconcile(byWindow));
-
-			// Keep the native helper in sync without sending full browser tab objects.
-			port?.postMessage({ type: "snapshot tabs", tabs: trimmedTabs });
-			port?.postMessage({ type: "snapshot windows", tabs: byWindow });
 		});
 	});
 
@@ -243,12 +232,6 @@ export function TabsProvider(props: ParentProps) {
 			isDuplicate: !!existing,
 			isAI: isAiTab(tab.url),
 		};
-
-		port?.postMessage({
-			type: "tabCreated",
-			tabId: newTab.id,
-			url: newTab.url,
-		});
 
 		batch(() => {
 			setTabs(newTab.id, newTab);
@@ -407,19 +390,7 @@ export function TabsProvider(props: ParentProps) {
 		removeWindow(windowId);
 	};
 
-	const handleNativeMessage = (response: unknown) => {
-		if (typeof response === "object" && response !== null) {
-			console.log(`Received: ${JSON.stringify(response)}`);
-		}
-	};
-
 	onMount(() => {
-		try {
-			port = browser.runtime.connectNative("tab_manager");
-		} catch (err) {
-			console.error("Failed to connect to native host 'tab_manager':", err);
-		}
-
 		browser.tabs.onCreated.addListener(handleTabCreated);
 		browser.tabs.onRemoved.addListener(handleTabRemoved);
 		browser.tabs.onUpdated.addListener(handleTabUpdated);
@@ -428,7 +399,6 @@ export function TabsProvider(props: ParentProps) {
 		browser.tabs.onDetached.addListener(handleTabDetached);
 		browser.tabs.onAttached.addListener(handleTabAttached);
 		browser.windows.onRemoved.addListener(handleWindowRemoved);
-		port?.onMessage.addListener(handleNativeMessage);
 
 		onCleanup(() => {
 			browser.tabs.onCreated.removeListener(handleTabCreated);
@@ -439,7 +409,6 @@ export function TabsProvider(props: ParentProps) {
 			browser.tabs.onDetached.removeListener(handleTabDetached);
 			browser.tabs.onAttached.removeListener(handleTabAttached);
 			browser.windows.onRemoved.removeListener(handleWindowRemoved);
-			port?.onMessage.removeListener(handleNativeMessage);
 		});
 	});
 
